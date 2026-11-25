@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard UTS Big Data · HAPISH-GANK (Wikimedia → Kafka → Spark)</title>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --primary: #2563eb;
+    --primary-soft: #eff6ff;
+    --accent: #0ea5e9;
+    --success: #10b981;
+    --success-soft: #ecfdf5;
+    --warn: #f59e0b;
+    --warn-soft: #fffbeb;
+    --danger: #ef4444;
+    --danger-soft: #fef2f2;
+    --purple: #7c3aed;
+    --purple-soft: #f5f3ff;
+    --shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 6px 18px rgba(15, 23, 42, .04);
+    --radius: 14px;
+  }
+  [data-theme="dark"] {
+    --bg: #0b1120;
+    --surface: #111827;
+    --surface-2: #1e293b;
+    --border: #273549;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --primary: #3b82f6;
+    --primary-soft: rgba(59, 130, 246, .14);
+    --accent: #38bdf8;
+    --success: #34d399;
+    --success-soft: rgba(16, 185, 129, .14);
+    --warn: #fbbf24;
+    --warn-soft: rgba(245, 158, 11, .14);
+    --danger: #f87171;
+    --danger-soft: rgba(239, 68, 68, .14);
+    --purple: #a78bfa;
+    --purple-soft: rgba(124, 58, 237, .16);
+    --shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    backdrop-filter: blur(10px);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 11px;
+    background: linear-gradient(135deg, #2563eb, #0ea5e9);
+    display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 16px;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, .3);
+  }
+  .brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand p { font-size: 12px; color: var(--muted); }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: var(--primary-soft); color: var(--primary); border: 1px solid transparent;
+  }
+  .pill.live { background: var(--success-soft); color: var(--success); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.live .dot { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(1.3); } }
+  .btn {
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+    padding: 6px 12px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: .15s ease;
+  }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .nav-tabs {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; gap: 4px; overflow-x: auto;
+  }
+  .tab-btn {
+    padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--muted);
+    background: none; border: none; border-bottom: 2.5px solid transparent;
+    cursor: pointer; white-space: nowrap; transition: .15s ease;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  .container { max-width: 1420px; margin: 0 auto; padding: 20px 24px 48px; }
+  .tab-panel { display: none; animation: fadeIn .2s ease; }
+  .tab-panel.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 18px;
+  }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--kpi-color, var(--primary));
+  }
+  .kpi-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi-val { font-size: 26px; font-weight: 800; margin: 6px 0 4px; letter-spacing: -0.02em; }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 980px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 16px;
+  }
+  .grid-2 .card, .grid-3 .card { margin-bottom: 0; }
+  .card-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .card-title { font-size: 15px; font-weight: 700; }
+  .card-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .badge {
+    display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .b-blue { background: var(--primary-soft); color: var(--primary); }
+  .b-green { background: var(--success-soft); color: var(--success); }
+  .b-warn { background: var(--warn-soft); color: var(--warn); }
+  .b-red { background: var(--danger-soft); color: var(--danger); }
+  .b-purple { background: var(--purple-soft); color: var(--purple); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 9px 11px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; background: var(--surface-2); }
+  tr:hover td { background: var(--surface-2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace; font-size: 12px; }
+
+  .table-wrap { overflow-x: auto; max-height: 390px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type="text"], select {
+    padding: 6px 11px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); font-size: 12.5px; outline: none;
+  }
+  input[type="text"]:focus, select:focus { border-color: var(--primary); }
+
+  .chart-box { position: relative; width: 100%; min-height: 250px; }
+  svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+
+  /* Architecture interactive SVG */
+  .arch-node { cursor: pointer; transition: transform .15s ease, filter .15s ease; }
+  .arch-node:hover { filter: drop-shadow(0 6px 14px rgba(37,99,235,.25)); }
+  .arch-node.selected rect { stroke-width: 3; stroke: var(--primary); }
+  .stage-detail {
+    margin-top: 14px; padding: 14px 16px; border-radius: 11px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px;
+  }
+  @media (max-width: 820px) { .stage-detail { grid-template-columns: 1fr; } }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 999;
+    background: #0f172a; color: #f8fafc; padding: 8px 11px; border-radius: 8px;
+    font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.3); opacity: 0; transition: opacity .1s;
+    max-width: 280px; border: 1px solid rgba(255,255,255,.12);
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-2); user-select: none; }
+  .legend-item.off { opacity: .4; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  .bar-track { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 999px; }
+
+  .live-banner {
+    display: none; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--success-soft); border: 1px solid var(--success); color: var(--text);
+    padding: 10px 16px; border-radius: 11px; margin-bottom: 16px; font-size: 12.5px;
+  }
+  .live-banner.show { display: flex; }
+
+  .check-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+    border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); margin-bottom: 8px;
+  }
+  .check-icon {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--success-soft); color: var(--success);
+    display: grid; place-items: center; font-weight: 800; font-size: 12px; flex-shrink: 0; margin-top: 1px;
+  }
+  .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--border); }
+  @media print {
+    .topbar .top-actions, .nav-tabs { display: none !important; }
+    .tab-panel { display: block !important; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div id="tooltip" class="tooltip"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">HG</div>
+    <div>
+      <h1>Dashboard Pemantauan Big Data Wikipedia · <span id="lbl-kelompok">HAPISH-GANK</span></h1>
+      <p>UTS Big Data &amp; Predictive Analytics Lanjut (ST153) · Arsitektur End-to-End: Sumber SSE → Producer → Kafka → Spark Cluster (Master + Worker 1 &amp; 2) → Dashboard</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span id="live-pill" class="pill"><span class="dot"></span><span id="live-pill-text">Mode Bukti UTS (Run dd44ef)</span></span>
+    <button class="btn" id="btn-theme" onclick="toggleTheme()">🌙 Mode Gelap</button>
+    <button class="btn" onclick="window.print()">🖨️ Cetak / PDF</button>
+  </div>
+</header>
+
+<nav class="nav-tabs" id="nav-tabs">
+  <button class="tab-btn active" data-tab="overview">1. Arsitektur &amp; Cluster</button>
+  <button class="tab-btn" data-tab="kafka">2. Kafka &amp; Decoupling (Soal 1)</button>
+  <button class="tab-btn" data-tab="batch">3. Spark RDD &amp; SQL (Soal 2–3)</button>
+  <button class="tab-btn" data-tab="streaming">4. Streaming &amp; Lonjakan (Soal 3c &amp; 4)</button>
+  <button class="tab-btn" data-tab="audit">5. Ringkasan Kelulusan UTS</button>
+</nav>
+
+<main class="container">
+  <div id="live-banner" class="live-banner">
+    <div><strong>🔴 Terhubung ke Live Server (Master 192.168.18.24)</strong> — Data Kafka offset, Spark Workers, dan hasil <code>foreachBatch</code> diperbarui otomatis setiap 10 detik. <span id="live-meta"></span></div>
+    <button class="btn" onclick="fetchLive()">↻ Refresh Sekarang</button>
+  </div>
+
+  <!-- ==================== TAB 1: OVERVIEW & ARSITEKTUR ==================== -->
+  <section id="tab-overview" class="tab-panel active">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kpi-color:#2563eb">
+        <div class="kpi-label">Total Pesan Kafka (Topic Raw)</div>
+        <div class="kpi-val" id="kpi-kafka">1,484,111</div>
+        <div class="kpi-sub">Laju terukur <strong>29.40 msg/dtk</strong> · 4 partisi · 0 gagal (uji 1b)</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#10b981">
+        <div class="kpi-label">Cluster Master + 2 Worker</div>
+        <div class="kpi-val" id="kpi-cluster">3 Node ALIVE</div>
+        <div class="kpi-sub">Ping Kafka: <strong>5.0 ms</strong> (w1) &amp; <strong>4.9 ms</strong> (w2) · MD5 identik</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#7c3aed">
+        <div class="kpi-label">Snapshot Spark RDD &amp; SQL</div>
+        <div class="kpi-val">205,000</div>
+        <div class="kpi-sub"><strong>237/237 wiki</strong> 100% konsisten · 85.8 MB · 0 duplikat</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#0ea5e9">
+        <div class="kpi-label">Akurasi Structured Streaming</div>
+        <div class="kpi-val">255 / 255</div>
+        <div class="kpi-sub">4,710 streaming = 4,710 batch · <strong>0 jendela berbeda</strong></div>
+      </div>
+      <div class="kpi" style="--kpi-color:#f59e0b">
+        <div class="kpi-label">Deteksi Lonjakan (k = p99)</div>
+        <div class="kpi-val">≥ 5 edit / 5m</div>
+        <div class="kpi-sub">Puncak <strong>129 edit/5m</strong> (wikidatawiki: Q62058936)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Arsitektur End-to-End Interaktif (Klik Tiap Tahap untuk Detail Konfigurasi)</div>
+          <div class="card-desc">Alur data terdistribusi dari Wikimedia EventStreams hingga Dashboard Real-Time di PC Master, Worker 1, dan Worker 2</div>
+        </div>
+        <span class="badge b-blue">Pipeline Lengkap · 5 Lini</span>
+      </div>
+      <div class="chart-box" style="min-height:220px;">
+        <svg id="arch-svg" class="chart" viewBox="0 0 1160 275"></svg>
+      </div>
+      <div id="stage-detail" class="stage-detail"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Status &amp; Topologi Cluster (Master, Worker 1, Worker 2)</div>
+          <div class="card-desc">Sinkronisasi lingkungan (Python 3.14.8 · PySpark 4.1.3 · OpenJDK 21 LTS), konektivitas Kafka, Spark Standalone, dan checksum MD5 snapshot</div>
+        </div>
+        <span class="badge b-green" id="badge-cluster-live">Semua Node Terverifikasi</span>
+      </div>
+      <div class="table-wrap">
+        <table id="tbl-cluster"></table>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Ringkasan Aktivitas: Edit per Menit (Top 5 Wiki)</div>
+            <div class="card-desc">Dari hasil Spark SQL (Soal 3b-i) · 526 observasi menit</div>
+          </div>
+          <span class="badge b-purple">Batch SQL</span>
+        </div>
+        <div id="chart-overview-epm" class="chart-box"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Proporsi Bot vs Manusia (Top 10 Wiki)</div>
+            <div class="card-desc">Perbandingan edit manusia (biru) vs bot (merah) dari 237 wiki</div>
+          </div>
+          <span class="badge b-blue">Soal 3b-ii</span>
+        </div>
+        <div id="chart-overview-bot" class="chart-box"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 2: KAFKA & DECOUPLING ==================== -->
+  <section id="tab-kafka" class="tab-panel">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kpi-color:#2563eb">
+        <div class="kpi-label">Anti-Skew Key (wiki|title)</div>
+        <div class="kpi-val">25.0% / partisi</div>
+        <div class="kpi-sub">CV = <strong>0.00</strong> (vs key=wiki: 59.8% hot partition, CV 0.85)</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#10b981">
+        <div class="kpi-label">Uji Decoupling (Normal)</div>
+        <div class="kpi-val">1,491,016</div>
+        <div class="kpi-sub">Hilang: <strong>0</strong> · Ganda: <strong>0</strong> · 2 Worker aktif</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#f59e0b">
+        <div class="kpi-label">Lag Saat Consumer Berhenti 2m</div>
+        <div class="kpi-val">3,777 pesan</div>
+        <div class="kpi-sub">Dikejar kembali ke lag <strong>3 pesan</strong> dalam <strong>6 detik</strong></div>
+      </div>
+      <div class="kpi" style="--kpi-color:#ef4444">
+        <div class="kpi-label">Simulasi Crash (At-Least-Once)</div>
+        <div class="kpi-val">0 Hilang</div>
+        <div class="kpi-sub">473 pesan diulang &amp; di-dedup idempoten via <code>wiki:id</code></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Distribusi Offset &amp; Laju pada 4 Partisi Kafka</div>
+            <div class="card-desc">Topic <code>HAPISH-GANK-wiki-raw</code> · Key <code>wiki|title</code> · Kompresi lz4 · acks=all</div>
+          </div>
+          <span class="badge b-blue">Soal 1a &amp; 1b</span>
+        </div>
+        <div id="chart-kafka-part" class="chart-box"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Bukti Anti-Skew: Key <code>wiki</code> vs Key <code>wiki|title</code></div>
+            <div class="card-desc">Beban partisi terberat &amp; rasio maks/rata-rata (Soal 1a lanjutan)</div>
+          </div>
+          <span class="badge b-green">CV 0.85 → 0.00</span>
+        </div>
+        <div id="chart-kafka-skew" class="chart-box"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Timeline Consumer Lag Uji Decoupling (Worker 1 &amp; Worker 2)</div>
+          <div class="card-desc">Fase A: Jalan normal (catch-up awal) → Fase B: Worker berhenti 120 dtk (lag menumpuk ke 3,777) → Fase C: Worker lanjut dari committed offset</div>
+        </div>
+        <span class="badge b-purple">Soal 1c · Group HAPISH-GANK-wiki-pemroses</span>
+      </div>
+      <div id="chart-kafka-lag" class="chart-box" style="min-height:280px;"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Verifikasi Hilang/Ganda: Normal vs Simulasi Crash</div>
+            <div class="card-desc">Perbandingan per partisi (commit manual setelah proses)</div>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tbl-crash"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Tabel Keputusan Desain Topic Kafka (Soal 1a)</div>
+            <div class="card-desc">Justifikasi teknis setiap parameter konfigurasi broker &amp; producer</div>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tbl-keputusan"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 3: SPARK BATCH (RDD & SQL) ==================== -->
+  <section id="tab-batch" class="tab-panel">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Tren Edit per Menit — Top 5 Wiki (Interaktif)</div>
+          <div class="card-desc">Klik legenda wiki untuk menampilkan/menyembunyikan kurva · Arahkan kursor untuk angka tepat</div>
+        </div>
+        <span class="badge b-blue">Soal 3b-i · Snapshot 205,000 Event</span>
+      </div>
+      <div id="epm-legend" class="legend"></div>
+      <div id="chart-batch-epm" class="chart-box" style="min-height:290px;"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Analisis Bot vs Manusia di 237 Wiki</div>
+            <div class="card-desc">Filter berdasarkan dominasi bot/manusia atau cari nama wiki</div>
+          </div>
+          <div class="controls">
+            <select id="bot-filter" onchange="renderBotExplorer()">
+              <option value="top15">Top 15 Total Edit</option>
+              <option value="bot">Dominasi Bot Tertinggi (≥100 edit)</option>
+              <option value="human">Dominasi Manusia Tertinggi (≥100 edit)</option>
+              <option value="id">Wiki Bahasa Nusantara (id/jv/su/ms)</option>
+            </select>
+            <input type="text" id="bot-search" placeholder="Cari wiki (mis. idwiki)..." oninput="renderBotExplorer()" />
+          </div>
+        </div>
+        <div id="chart-batch-bot" class="chart-box" style="min-height:310px;"></div>
+        <div class="table-wrap" style="max-height:220px;margin-top:12px;"><table id="tbl-bot"></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Spotlight Wikipedia Indonesia (<code>idwiki</code>) &amp; Tipe Event</div>
+            <div class="card-desc">Gabungan hasil RDD (Soal 2b-ii, 2b-iii) dan Spark SQL (Soal 3b-iii, 3b-iv)</div>
+          </div>
+          <span class="badge b-purple">RDD + SQL</span>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Distribusi Tipe Event &amp; Selisih Byte (205,000 baris)</div>
+          <div class="table-wrap" style="max-height:170px;"><table id="tbl-types"></table></div>
+        </div>
+        <div class="grid-2" style="gap:12px;margin-bottom:0;">
+          <div>
+            <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Top Halaman <code>idwiki</code> (Editor Unik &amp; Suntingan)</div>
+            <div class="table-wrap" style="max-height:240px;"><table id="tbl-idwiki"></table></div>
+          </div>
+          <div>
+            <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">Top 15 Kata Komentar <code>idwiki</code> (RDD)</div>
+            <div id="chart-words" class="chart-box" style="min-height:240px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Benchmark Spark RDD: <code>reduceByKey</code> vs <code>groupByKey</code> &amp; <code>cache()</code></div>
+            <div class="card-desc">Map-side combine mengurangi nilai shuffle hingga <strong>1,090x</strong> (1,164 vs 1,269,660 pada skala 20x) · Cache memangkas 33% waktu</div>
+          </div>
+          <span class="badge b-warn">Soal 2c &amp; 2d</span>
+        </div>
+        <div id="chart-rdd-bench" class="chart-box"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Optimasi Spark SQL: <code>shuffle.partitions</code> &amp; <code>BroadcastHashJoin</code></div>
+            <div class="card-desc">Tuning 200 → 4 partisi mempercepat <strong>11.8x</strong> (5.467 → 0.462 dtk) · Broadcast Join menghemat <strong>97%</strong> shuffle read</div>
+          </div>
+          <span class="badge b-green">Soal 3d</span>
+        </div>
+        <div id="chart-sql-opt" class="chart-box"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 4: STREAMING & LONJAKAN ==================== -->
+  <section id="tab-streaming" class="tab-panel">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kpi-color:#0ea5e9">
+        <div class="kpi-label">Throughput Trigger 10s vs 30s</div>
+        <div class="kpi-val">134.2 → 444.8/s</div>
+        <div class="kpi-sub">Trigger 30s <strong>3.31x</strong> lebih efisien (latensi 7.6s vs 17.7s)</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#10b981">
+        <div class="kpi-label">Verifikasi Exactness (Soal 4c)</div>
+        <div class="kpi-val">0 Selisih</div>
+        <div class="kpi-sub">255 jendela final · 4,710 streaming = 4,710 batch ulang</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#7c3aed">
+        <div class="kpi-label">Uji Watermark (2 Menit)</div>
+        <div class="kpi-val">1 Dibuang · 1 Masuk</div>
+        <div class="kpi-sub">Telat 10 mnt dibuang (<code>+1 dropped</code>) · 45 dtk tetap dihitung</div>
+      </div>
+      <div class="kpi" style="--kpi-color:#ef4444">
+        <div class="kpi-label">Ambang Lonjakan Adaptif (k)</div>
+        <div class="kpi-val">k = 5 edit / 5m</div>
+        <div class="kpi-sub">Persentil ke-99 · 25 lonjakan teratas ditandai otomatis</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Streaming vs Batch Verification per Menit (18:04–18:08 WIB)</div>
+            <div class="card-desc">Total edit per jendela 1 menit hasil <code>foreachBatch</code> dibandingkan batch ulang Kafka (identik 100%)</div>
+          </div>
+          <span class="badge b-green">Soal 4a &amp; 4c · 0% Error</span>
+        </div>
+        <div id="chart-stream-verif" class="chart-box"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Trade-off Trigger Structured Streaming: 10 Detik vs 30 Detik</div>
+            <div class="card-desc">Perbandingan throughput (<code>processedRowsPerSecond</code>) tiap micro-batch &amp; perkiraan latensi</div>
+          </div>
+          <span class="badge b-blue">Soal 4b</span>
+        </div>
+        <div id="chart-trigger" class="chart-box"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Peringatan Lonjakan Halaman (≥ 5 Edit / Jendela 5 Menit · Soal 3c)</div>
+          <div class="card-desc">Deteksi anomali halaman ramai beserta klasifikasi pola (bot, satu editor beruntun, atau indikasi edit war)</div>
+        </div>
+        <div class="controls">
+          <input type="text" id="spike-search" placeholder="Cari halaman / wiki..." oninput="renderSpikes()" />
+          <select id="spike-min" onchange="renderSpikes()">
+            <option value="5">Semua (≥ 5 edit)</option>
+            <option value="45">Tinggi (≥ 45 edit)</option>
+            <option value="55">Kritis (≥ 55 edit)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div id="chart-spikes" class="chart-box" style="min-height:310px;"></div>
+        <div class="table-wrap" style="max-height:330px;"><table id="tbl-spikes"></table></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Top Wiki pada Jendela Streaming Aktif (18:04–18:08 WIB) &amp; Mekanisme Watermark</div>
+          <div class="card-desc">Distribusi 4,710 suntingan streaming + visualisasi uji event terlambat <code>ujiterlambat</code></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div id="chart-stream-wikis" class="chart-box"></div>
+        <div style="display:flex;flex-direction:column;justify-content:center;gap:10px;">
+          <div class="check-item">
+            <div class="check-icon">✓</div>
+            <div><strong>Watermark = Event Time Maks − 2 Menit</strong><br><span style="color:var(--muted);font-size:12px;">Saat uji: watermark berada di <code>2026-11-19 11:09:30 UTC (18:09:30 WIB)</code>.</span></div>
+          </div>
+          <div class="check-item" style="border-color:var(--danger);background:var(--danger-soft);">
+            <div class="check-icon" style="background:var(--danger);color:#fff;">✕</div>
+            <div><strong>Event A · TERLAMBAT_10_MENIT (18:01:20 WIB)</strong><br><span style="color:var(--muted);font-size:12px;">Lebih tua dari batas watermark → <strong>DIBUANG</strong> otomatis (<code>numRowsDroppedByWatermark: +1</code>), state jendela lama tidak diubah.</span></div>
+          </div>
+          <div class="check-item" style="border-color:var(--success);background:var(--success-soft);">
+            <div class="check-icon">✓</div>
+            <div><strong>Event B · TERLAMBAT_45_DETIK (18:10:35 WIB)</strong><br><span style="color:var(--muted);font-size:12px;">Masih dalam batas toleransi 2 menit → <strong>DITERIMA</strong> dan memperbarui jendela <code>18:10–18:11</code> (batch 6, mode <code>update</code>).</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TAB 5: AUDIT KELULUSAN UTS ==================== -->
+  <section id="tab-audit" class="tab-panel">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Checklist Lengkap Ketentuan UTS Big Data (ST153) · Kelompok HAPISH-GANK</div>
+          <div class="card-desc">Rekap bukti terverifikasi dari <code>UTS_Master.ipynb</code>, <code>UTS_Worker_1.ipynb</code>, <code>UTS_Worker_2.ipynb</code>, dan <code>laporan_uts/HAPISH-GANK/</code></div>
+        </div>
+        <span class="badge b-green">100% Lini Selesai</span>
+      </div>
+      <div id="audit-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Informasi Sesi &amp; Integritas Bukti</div>
+          <div class="card-desc">Metadata eksekusi end-to-end Master + Worker 1 + Worker 2</div>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="tbl-meta"></table></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    Dashboard UTS Big Data &amp; Predictive Analytics Lanjut (ST153) · Kelompok <strong>HAPISH-GANK</strong> · Master <code>192.168.18.24</code> + Worker 1 (<code>192.168.18.40</code>) + Worker 2 (<code>192.168.18.14</code>) · Sumber data: Wikimedia EventStreams → Apache Kafka → Apache Spark 4.1.3
+  </footer>
+</main>
+
+<script>
+const DATA = {"meta": {"kelompok": "HAPISH-GANK", "run_id": "dd44ef", "mulai": "2026-11-19 14:34:02", "selesai": "2026-11-19 18:23:34", "master_ip": "192.168.18.24", "spark_version": "4.1.3", "python_version": "3.14.8", "java_version": "OpenJDK 21.0.12.1 LTS", "topic_raw": "HAPISH-GANK-wiki-raw", "topic_kontrol": "HAPISH-GANK-kontrol", "topic_status": "HAPISH-GANK-status", "group_uji": "HAPISH-GANK-wiki-pemroses-dd44ef", "snapshot_md5": "86660c865b672fd6f9ab74dc4cb6da8b", "snapshot_mb": 85.8}, "cluster": [{"role": "Master (Kafka + Spark Master + Producer + Driver)", "node": "fish (Master)", "ip": "192.168.18.24", "ports": "9092 (Kafka), 7077/8080 (Spark), 4040 (UI), 8888 (Jupyter)", "cores": 2, "mem_mb": 2048, "ping_ms": 0.0, "md5_match": true, "status": "ALIVE"}, {"role": "Worker 1 (Kafka Consumer + Spark Executor)", "node": "fish-w1 / WIN-GM4G4OVQA9R", "ip": "192.168.18.40", "ports": "7078 (Worker), 7079 (Executor), 8081 (WebUI)", "cores": 4, "mem_mb": 6144, "ping_ms": 5.0, "md5_match": true, "status": "ALIVE"}, {"role": "Worker 2 (Kafka Consumer + Spark Executor)", "node": "fish-w2 / Dani", "ip": "192.168.18.14", "ports": "7078 (Worker), 7079 (Executor), 8081 (WebUI)", "cores": 4, "mem_mb": 6144, "ping_ms": 4.9, "md5_match": true, "status": "ALIVE"}], "ringkasan": {"kelompok": "HAPISH-GANK", "run_id": "dd44ef", "mulai": "2026-11-19 14:34:02", "worker_kafka": 2, "worker_spark": 3, "spark": {"versi": "4.1.3", "executor": 2, "konektor_kafka": true}, "1b": {"pesan": 1484111, "laju_offset": 29.4, "menit_producer": 11.0, "reconnect": 0, "dibuang": 0}, "1a_skew": {"maks/rata-rata": {"key = wiki (simulasi)": 2.39, "key = wiki|title (simulasi)": 1.0, "key = wiki|title (asli di topic)": 1.0}, "min/rata-rata": {"key = wiki (simulasi)": 0.23, "key = wiki|title (simulasi)": 1.0, "key = wiki|title (asli di topic)": 1.0}, "koef_variasi": {"key = wiki (simulasi)": 0.85, "key = wiki|title (simulasi)": 0.0, "key = wiki|title (asli di topic)": 0.0}, "partisi_terberat_%": {"key = wiki (simulasi)": 59.8, "key = wiki|title (simulasi)": 25.0, "key = wiki|title (asli di topic)": 25.0}}, "1c": {"group": "HAPISH-GANK-wiki-pemroses-dd44ef", "hilang": 0, "ganda": 0, "diproses": 1491016, "unik": 1491007, "menumpuk_saat_berhenti": 3777}, "1c_crash": {"ganda": 473, "hilang": 0}, "snapshot": {"pesan": 205000, "sumber": "jsonl", "path": "C:\\Users\\Public\\uts_bigdata\\HAPISH-GANK\\snapshot\\wiki_snapshot_dd44ef.jsonl"}, "2a": {"valid": 205000, "rusak": 4, "tidak_lengkap": 2, "unik": 205000, "partisi": 9, "glom": [25600, 25600, 25600, 25600, 25600, 25600, 25600, 25800, 0]}, "2b": {"top_wiki": [["wikidatawiki", 38725], ["commonswiki", 5877], ["enwiki", 5360], ["dewiki", 1347], ["kaawiki", 1013], ["frwiki", 920], ["zhwiki", 796], ["ruwiki", 779], ["jawiki", 617], ["ptwiki", 594]], "top_halaman_idwiki": [["Angel Lelga", 8], ["Hutan Kota UI", 6], ["Marvel Cinematic Universe: Fase Lima", 6], ["Pembicaraan Pengguna:~2026-58660-35/Bak pasir", 5], ["Harimau Putih Terikat Cinta", 4], ["Novi Rubadi Sugito", 4], ["Pengguna:St3095/LN", 4], ["Roda", 4], ["Abronia fragrans", 3], ["Pengguna:YTTA12/bak pasir", 3]], "top_kata_idwiki": [["summary", 86], ["altered", 44], ["iabot", 44], ["needing", 44], ["notification", 44], ["review", 44], ["sources", 44], ["growthexperiments", 43], ["addlink", 38], ["bot", 19], ["halaman", 14], ["membuat", 14], ["berisi", 11], ["wikipedia", 11], ["csu", 9]]}, "2c": [{"data": "data asli", "metode": "reduceByKey", "waktu_terbaik_dtk": 20.924, "nilai_dikirim_lewat_shuffle": 1164, "shuffle_write_kb": 19.0, "shuffle_read_kb": 19.0, "record_shuffle_spark_ui": 161, "stage": 3, "task": 27}, {"data": "data asli", "metode": "groupByKey().mapValues(sum)", "waktu_terbaik_dtk": 20.822, "nilai_dikirim_lewat_shuffle": 63483, "shuffle_write_kb": 21.5, "shuffle_read_kb": 21.5, "record_shuffle_spark_ui": 161, "stage": 3, "task": 27}, {"data": "diperbanyak 20x", "metode": "reduceByKey", "waktu_terbaik_dtk": 21.313, "nilai_dikirim_lewat_shuffle": 1164, "shuffle_write_kb": 19.4, "shuffle_read_kb": 19.4, "record_shuffle_spark_ui": 161, "stage": 3, "task": 27}, {"data": "diperbanyak 20x", "metode": "groupByKey().mapValues(sum)", "waktu_terbaik_dtk": 21.031, "nilai_dikirim_lewat_shuffle": 1269660, "shuffle_write_kb": 34.5, "shuffle_read_kb": 34.5, "record_shuffle_spark_ui": 161, "stage": 3, "task": 27}], "2d": {"job_stage_task": [{"action": "raw.count()", "job": 1, "stage": 1, "stage_dilewati": 0, "task": 9, "task_dilewati": 0, "detik": 22.29}, {"action": "parsed.count() [cache]", "job": 1, "stage": 1, "stage_dilewati": 0, "task": 9, "task_dilewati": 0, "detik": 12.54}, {"action": "unik.count() [cache]", "job": 1, "stage": 2, "stage_dilewati": 1, "task": 18, "task_dilewati": 9, "detik": 10.66}, {"action": "(i) takeOrdered", "job": 1, "stage": 3, "stage_dilewati": 1, "task": 27, "task_dilewati": 9, "detik": 21.44}, {"action": "(ii) takeOrdered", "job": 1, "stage": 3, "stage_dilewati": 1, "task": 27, "task_dilewati": 9, "detik": 21.5}, {"action": "(iii) takeOrdered", "job": 1, "stage": 3, "stage_dilewati": 1, "task": 27, "task_dilewati": 9, "detik": 21.85}, {"action": "parsed.glom().map(len).collect()", "job": 1, "stage": 1, "stage_dilewati": 0, "task": 9, "task_dilewati": 0, "detik": 12.59}], "cache": [{"skenario": "tanpa cache (3 action)", "detik": 89.973}, {"skenario": "dengan cache (3 action, termasuk mengisi cache)", "detik": 79.419}, {"skenario": "dengan cache, diulang (cache sudah terisi)", "detik": 60.084}]}, "3a": {"baris_unik": 205000, "rusak": 0, "konsisten_dengan_rdd": true, "sumber": "jsonl"}, "3b": {"konsisten_rdd_sql": true, "persen_bot_top5": [{"wiki": "wikidatawiki", "total_edit": 40746, "edit_bot": 2021, "edit_manusia": 38725, "persen_bot": "4.96", "persen_manusia": "95.04"}, {"wiki": "commonswiki", "total_edit": 24332, "edit_bot": 18455, "edit_manusia": 5877, "persen_bot": "75.85", "persen_manusia": "24.15"}, {"wiki": "enwiki", "total_edit": 6571, "edit_bot": 1211, "edit_manusia": 5360, "persen_bot": "18.43", "persen_manusia": "81.57"}, {"wiki": "ttwiki", "total_edit": 2380, "edit_bot": 2379, "edit_manusia": 1, "persen_bot": "99.96", "persen_manusia": "0.04"}, {"wiki": "dewiki", "total_edit": 1996, "edit_bot": 649, "edit_manusia": 1347, "persen_bot": "32.52", "persen_manusia": "67.48"}]}, "3c": {"p99": 5, "k": 5, "jumlah_lonjakan": 25}, "3d": [{"optimasi": "shuffle.partitions = 200", "waktu_terbaik_dtk": 5.467, "task_per_3_eksekusi": 1530, "shuffle_read_kb_per_3": 337.5}, {"optimasi": "shuffle.partitions = 4", "waktu_terbaik_dtk": 0.462, "task_per_3_eksekusi": 84, "shuffle_read_kb_per_3": 120.6}, {"optimasi": "join tanpa broadcast (SortMergeJoin)", "waktu_terbaik_dtk": 10.63, "task_per_3_eksekusi": 60, "shuffle_read_kb_per_3": 388.3}, {"optimasi": "join broadcast (BroadcastHashJoin)", "waktu_terbaik_dtk": 10.127, "task_per_3_eksekusi": 48, "shuffle_read_kb_per_3": 11.8}], "4b": [{"trigger": "10 seconds", "batch": 14, "input_per_batch": 342.4, "inputRowsPerSecond": 34.2, "processedRowsPerSecond": 134.2, "durasi_batch_ms": 2602.2, "perkiraan_latensi_dtk": 7.6}, {"trigger": "30 seconds", "batch": 8, "input_per_batch": 1177.2, "inputRowsPerSecond": 39.7, "processedRowsPerSecond": 444.8, "durasi_batch_ms": 2738.4, "perkiraan_latensi_dtk": 17.7}], "4c": {"offset_lanjut_tepat": null, "jendela_final": 255, "jendela_beda": 0}, "4c_terlambat": {"dibuang": 1, "baris_uji": 1}, "producer_akhir": {"berjalan": false, "menit": 219.71, "koneksi": 16, "diproduksi": 458449, "terkirim": 312129, "reconnect": 15, "gagal_kirim": 146320, "dibuang": 9, "laju_rata": 23.68}, "selesai": "2026-11-19 18:23:34"}, "keputusan": [{"Keputusan": "Nama topic", "Nilai": "HAPISH-GANK-wiki-raw", "Alasan": "Awalan kelompok mencegah tabrakan dengan kelompok lain di broker yang sama; akhiran 'raw' menandai data mentah sebelum diolah."}, {"Keputusan": "Jumlah partisi", "Nilai": "4", "Alasan": "Sama dengan total core executor (2 Worker × 2 core): satu batch Kafka langsung menjadi 4 task paralel dan habis dibagi 2 consumer (2 partisi per Worker). Partisi bisa ditambah, tidak bisa dikurangi."}, {"Keputusan": "Key pesan", "Nilai": "wiki|title", "Alasan": "Suntingan halaman yang sama selalu masuk partisi yang sama (urutan per halaman terjaga, berguna untuk deteksi edit war), sementara beban tersebar karena jumlah halaman sangat banyak. Duplikat akibat reconnect SSE memiliki key sama sehingga jatuh di partisi yang sama."}, {"Keputusan": "Replikasi", "Nilai": "1", "Alasan": "Lab hanya memiliki 1 broker dan faktor replikasi tidak boleh melebihi jumlah broker. Risiko: jika PC Master mati, data tidak tersedia (keterbatasan)."}, {"Keputusan": "Retensi", "Nilai": "72 jam (retention.ms=259200000)", "Alasan": "Cukup untuk mengumpulkan ≥200.000 pesan, mengulang snapshot, dan menjalankan ulang streaming selama masa ujian tanpa memenuhi disk PC Master."}, {"Keputusan": "Consumer group", "Nilai": "HAPISH-GANK-wiki-pemroses (2 Worker); Spark menyimpan offset di checkpoint", "Alasan": "Dalam satu group, tiap partisi dibaca tepat satu Worker (pembagian kerja + failover saat Worker mati). Spark Structured Streaming tidak memakai commit group; offset dicatat di checkpointLocation."}, {"Keputusan": "Kompresi & keandalan producer", "Nilai": "lz4, acks=all, enable.idempotence=true", "Alasan": "lz4 menghemat jaringan dengan CPU rendah; acks=all + idempotence mencegah pesan hilang atau ganda dari sisi producer."}], "offset_partisi": [{"partisi": 0, "low": 0, "high": 402330, "jumlah": 402330, "delta_60s": 479, "laju": 7.98}, {"partisi": 1, "low": 0, "high": 336221, "jumlah": 336221, "delta_60s": 381, "laju": 6.35}, {"partisi": 2, "low": 0, "high": 380792, "jumlah": 380792, "delta_60s": 472, "laju": 7.87}, {"partisi": 3, "low": 0, "high": 364768, "jumlah": 364768, "delta_60s": 432, "laju": 7.2}], "riwayat_lag": [{"fase": "A_jalan", "detik": 0, "total_lag": 1484551, "log_end": 1484551}, {"fase": "A_jalan", "detik": 10, "total_lag": 880908, "log_end": 1484908}, {"fase": "A_jalan", "detik": 20, "total_lag": 254163, "log_end": 1485163}, {"fase": "A_jalan", "detik": 30, "total_lag": 34, "log_end": 1485469}, {"fase": "A_jalan", "detik": 40, "total_lag": 60, "log_end": 1485686}, {"fase": "A_jalan", "detik": 50, "total_lag": 65, "log_end": 1486050}, {"fase": "A_jalan", "detik": 60, "total_lag": 53, "log_end": 1486376}, {"fase": "B_berhenti", "detik": 0, "total_lag": 107, "log_end": 1486472}, {"fase": "B_berhenti", "detik": 15, "total_lag": 604, "log_end": 1486969}, {"fase": "B_berhenti", "detik": 30, "total_lag": 1038, "log_end": 1487403}, {"fase": "B_berhenti", "detik": 45, "total_lag": 1472, "log_end": 1487837}, {"fase": "B_berhenti", "detik": 60, "total_lag": 1949, "log_end": 1488314}, {"fase": "B_berhenti", "detik": 75, "total_lag": 2417, "log_end": 1488782}, {"fase": "B_berhenti", "detik": 90, "total_lag": 2862, "log_end": 1489227}, {"fase": "B_berhenti", "detik": 105, "total_lag": 3342, "log_end": 1489707}, {"fase": "B_berhenti", "detik": 120, "total_lag": 3777, "log_end": 1490142}, {"fase": "C_lanjut", "detik": 0, "total_lag": 2968, "log_end": 1490333}, {"fase": "C_lanjut", "detik": 3, "total_lag": 63, "log_end": 1490470}, {"fase": "C_lanjut", "detik": 6, "total_lag": 3, "log_end": 1490568}, {"fase": "C_lanjut", "detik": 9, "total_lag": 95, "log_end": 1490726}, {"fase": "C_lanjut", "detik": 12, "total_lag": 19, "log_end": 1490905}, {"fase": "C_lanjut", "detik": 15, "total_lag": 49, "log_end": 1491033}], "hilang_ganda": [{"partisi": "0", "rentang_uji": "[0, 404263)", "pesan_seharusnya": "404263", "diproses_total": "404263", "hilang": "0", "ganda": "0"}, {"partisi": "1", "rentang_uji": "[0, 337851)", "pesan_seharusnya": "337851", "diproses_total": "337851", "hilang": "0", "ganda": "0"}, {"partisi": "2", "rentang_uji": "[0, 382487)", "pesan_seharusnya": "382487", "diproses_total": "382487", "hilang": "0", "ganda": "0"}, {"partisi": "3", "rentang_uji": "[0, 366415)", "pesan_seharusnya": "366415", "diproses_total": "366415", "hilang": "0", "ganda": "0"}], "crash_tabel": [{"partisi": "0", "rentang_uji": "[0, 405321)", "pesan_seharusnya": "405321", "diproses_total": "405452", "hilang": "0", "ganda": "131"}, {"partisi": "1", "rentang_uji": "[0, 338761)", "pesan_seharusnya": "338761", "diproses_total": "338859", "hilang": "0", "ganda": "98"}, {"partisi": "2", "rentang_uji": "[0, 383414)", "pesan_seharusnya": "383414", "diproses_total": "383546", "hilang": "0", "ganda": "132"}, {"partisi": "3", "rentang_uji": "[0, 367365)", "pesan_seharusnya": "367365", "diproses_total": "367477", "hilang": "0", "ganda": "112"}], "epm_minutes": ["2026-11-19 13:29", "2026-11-19 13:30", "2026-11-19 13:31", "2026-11-19 13:32", "2026-11-19 13:33", "2026-11-19 13:34", "2026-11-19 13:35", "2026-11-19 13:36", "2026-11-19 13:37", "2026-11-19 13:38", "2026-11-19 13:39", "2026-11-19 13:40", "2026-11-19 13:41", "2026-11-19 13:42", "2026-11-19 13:43", "2026-11-19 13:44", "2026-11-19 13:45", "2026-11-19 13:46", "2026-11-19 13:47", "2026-11-19 13:48", "2026-11-19 13:49", "2026-11-19 13:50", "2026-11-19 13:51", "2026-11-19 13:52", "2026-11-19 13:53", "2026-11-19 13:54", "2026-11-19 13:55", "2026-11-19 13:56", "2026-11-19 13:57", "2026-11-19 13:58", "2026-11-19 13:59", "2026-11-19 14:00", "2026-11-19 14:01", "2026-11-19 14:02", "2026-11-19 14:03", "2026-11-19 14:04", "2026-11-19 14:05", "2026-11-19 14:06", "2026-11-19 14:07", "2026-11-19 14:08", "2026-11-19 14:09", "2026-11-19 14:10", "2026-11-19 14:11", "2026-11-19 14:12", "2026-11-19 14:13", "2026-11-19 14:14", "2026-11-19 14:15", "2026-11-19 14:16", "2026-11-19 14:17", "2026-11-19 14:18", "2026-11-19 14:19", "2026-11-19 14:20", "2026-11-19 14:21", "2026-11-19 14:22", "2026-11-19 14:23", "2026-11-19 14:24", "2026-11-19 14:25", "2026-11-19 14:26", "2026-11-19 14:27", "2026-11-19 14:28", "2026-11-19 14:29", "2026-11-19 14:30", "2026-11-19 14:31", "2026-11-19 14:32", "2026-11-19 14:33", "2026-11-19 14:43", "2026-11-19 14:44", "2026-11-19 14:45", "2026-11-19 14:46", "2026-11-19 14:47", "2026-11-19 14:48", "2026-11-19 14:49", "2026-11-19 14:50", "2026-11-19 14:51", "2026-11-19 14:52", "2026-11-19 14:53", "2026-11-19 14:54", "2026-11-19 14:55", "2026-11-19 14:56", "2026-11-19 14:57", "2026-11-19 14:58", "2026-11-19 14:59", "2026-11-19 15:00", "2026-11-19 15:01", "2026-11-19 16:16", "2026-11-19 16:17", "2026-11-19 16:18", "2026-11-19 16:19", "2026-11-19 16:20", "2026-11-19 16:21", "2026-11-19 16:22", "2026-11-19 16:23", "2026-11-19 16:24", "2026-11-19 16:25", "2026-11-19 16:26", "2026-11-19 16:27", "2026-11-19 16:28", "2026-11-19 16:29", "2026-11-19 16:30", "2026-11-19 16:31", "2026-11-19 16:32", "2026-11-19 16:33", "2026-11-19 16:34", "2026-11-19 16:35", "2026-11-19 16:36", "2026-11-19 16:37"], "epm_by_wiki": {"wikidatawiki": {"2026-11-19 13:29": 1, "2026-11-19 13:30": 92, "2026-11-19 13:31": 193, "2026-11-19 13:32": 174, "2026-11-19 13:33": 211, "2026-11-19 13:34": 245, "2026-11-19 13:35": 255, "2026-11-19 13:36": 271, "2026-11-19 13:37": 287, "2026-11-19 13:38": 221, "2026-11-19 13:39": 275, "2026-11-19 13:40": 251, "2026-11-19 13:41": 326, "2026-11-19 13:42": 328, "2026-11-19 13:43": 415, "2026-11-19 13:44": 442, "2026-11-19 13:45": 411, "2026-11-19 13:46": 414, "2026-11-19 13:47": 346, "2026-11-19 13:48": 811, "2026-11-19 13:49": 453, "2026-11-19 13:50": 434, "2026-11-19 13:51": 851, "2026-11-19 13:52": 919, "2026-11-19 13:53": 438, "2026-11-19 13:54": 431, "2026-11-19 13:55": 437, "2026-11-19 13:56": 437, "2026-11-19 13:57": 448, "2026-11-19 13:58": 468, "2026-11-19 13:59": 412, "2026-11-19 14:00": 383, "2026-11-19 14:01": 396, "2026-11-19 14:02": 367, "2026-11-19 14:03": 363, "2026-11-19 14:04": 367, "2026-11-19 14:05": 362, "2026-11-19 14:06": 363, "2026-11-19 14:07": 373, "2026-11-19 14:08": 364, "2026-11-19 14:09": 310, "2026-11-19 14:10": 312, "2026-11-19 14:11": 360, "2026-11-19 14:12": 358, "2026-11-19 14:13": 398, "2026-11-19 14:14": 399, "2026-11-19 14:15": 377, "2026-11-19 14:16": 407, "2026-11-19 14:17": 380, "2026-11-19 14:18": 390, "2026-11-19 14:19": 377, "2026-11-19 14:20": 361, "2026-11-19 14:21": 336, "2026-11-19 14:22": 285, "2026-11-19 14:23": 311, "2026-11-19 14:24": 306, "2026-11-19 14:25": 306, "2026-11-19 14:26": 351, "2026-11-19 14:27": 390, "2026-11-19 14:28": 351, "2026-11-19 14:29": 407, "2026-11-19 14:30": 424, "2026-11-19 14:31": 385, "2026-11-19 14:32": 413, "2026-11-19 14:33": 297, "2026-11-19 14:43": 39, "2026-11-19 14:44": 374, "2026-11-19 14:45": 329, "2026-11-19 14:46": 357, "2026-11-19 14:47": 363, "2026-11-19 14:48": 372, "2026-11-19 14:49": 392, "2026-11-19 14:50": 365, "2026-11-19 14:51": 378, "2026-11-19 14:52": 373, "2026-11-19 14:53": 380, "2026-11-19 14:54": 383, "2026-11-19 14:55": 393, "2026-11-19 14:56": 448, "2026-11-19 14:57": 411, "2026-11-19 14:58": 420, "2026-11-19 14:59": 528, "2026-11-19 15:00": 443, "2026-11-19 15:01": 262, "2026-11-19 16:16": 254, "2026-11-19 16:17": 487, "2026-11-19 16:18": 446, "2026-11-19 16:19": 465, "2026-11-19 16:20": 459, "2026-11-19 16:21": 437, "2026-11-19 16:22": 444, "2026-11-19 16:23": 456, "2026-11-19 16:24": 454, "2026-11-19 16:25": 438, "2026-11-19 16:26": 427, "2026-11-19 16:27": 445, "2026-11-19 16:28": 487, "2026-11-19 16:29": 518, "2026-11-19 16:30": 513, "2026-11-19 16:31": 477, "2026-11-19 16:32": 467, "2026-11-19 16:33": 482, "2026-11-19 16:34": 497, "2026-11-19 16:35": 474, "2026-11-19 16:36": 426, "2026-11-19 16:37": 157}, "commonswiki": {"2026-11-19 13:30": 103, "2026-11-19 13:31": 84, "2026-11-19 13:32": 98, "2026-11-19 13:33": 157, "2026-11-19 13:34": 158, "2026-11-19 13:35": 152, "2026-11-19 13:36": 171, "2026-11-19 13:37": 178, "2026-11-19 13:38": 190, "2026-11-19 13:39": 151, "2026-11-19 13:40": 169, "2026-11-19 13:41": 164, "2026-11-19 13:42": 188, "2026-11-19 13:43": 231, "2026-11-19 13:44": 216, "2026-11-19 13:45": 195, "2026-11-19 13:46": 193, "2026-11-19 13:47": 241, "2026-11-19 13:48": 182, "2026-11-19 13:49": 191, "2026-11-19 13:50": 198, "2026-11-19 13:51": 203, "2026-11-19 13:52": 181, "2026-11-19 13:53": 203, "2026-11-19 13:54": 224, "2026-11-19 13:55": 222, "2026-11-19 13:56": 191, "2026-11-19 13:57": 220, "2026-11-19 13:58": 201, "2026-11-19 13:59": 195, "2026-11-19 14:00": 219, "2026-11-19 14:01": 226, "2026-11-19 14:02": 229, "2026-11-19 14:03": 261, "2026-11-19 14:04": 333, "2026-11-19 14:05": 221, "2026-11-19 14:06": 219, "2026-11-19 14:07": 213, "2026-11-19 14:08": 215, "2026-11-19 14:09": 209, "2026-11-19 14:10": 212, "2026-11-19 14:11": 242, "2026-11-19 14:12": 213, "2026-11-19 14:13": 223, "2026-11-19 14:14": 227, "2026-11-19 14:15": 268, "2026-11-19 14:16": 371, "2026-11-19 14:17": 234, "2026-11-19 14:18": 212, "2026-11-19 14:19": 243, "2026-11-19 14:20": 200, "2026-11-19 14:21": 251, "2026-11-19 14:22": 235, "2026-11-19 14:23": 232, "2026-11-19 14:24": 224, "2026-11-19 14:25": 219, "2026-11-19 14:26": 271, "2026-11-19 14:27": 196, "2026-11-19 14:28": 192, "2026-11-19 14:29": 391, "2026-11-19 14:30": 249, "2026-11-19 14:31": 194, "2026-11-19 14:32": 291, "2026-11-19 14:33": 164, "2026-11-19 14:43": 26, "2026-11-19 14:44": 211, "2026-11-19 14:45": 234, "2026-11-19 14:46": 243, "2026-11-19 14:47": 272, "2026-11-19 14:48": 235, "2026-11-19 14:49": 219, "2026-11-19 14:50": 211, "2026-11-19 14:51": 253, "2026-11-19 14:52": 244, "2026-11-19 14:53": 217, "2026-11-19 14:54": 279, "2026-11-19 14:55": 293, "2026-11-19 14:56": 262, "2026-11-19 14:57": 274, "2026-11-19 14:58": 339, "2026-11-19 14:59": 255, "2026-11-19 15:00": 326, "2026-11-19 15:01": 158, "2026-11-19 16:16": 196, "2026-11-19 16:17": 403, "2026-11-19 16:18": 229, "2026-11-19 16:19": 223, "2026-11-19 16:20": 327, "2026-11-19 16:21": 650, "2026-11-19 16:22": 487, "2026-11-19 16:23": 271, "2026-11-19 16:24": 214, "2026-11-19 16:25": 318, "2026-11-19 16:26": 240, "2026-11-19 16:27": 228, "2026-11-19 16:28": 350, "2026-11-19 16:29": 280, "2026-11-19 16:30": 274, "2026-11-19 16:31": 248, "2026-11-19 16:32": 242, "2026-11-19 16:33": 228, "2026-11-19 16:34": 250, "2026-11-19 16:35": 253, "2026-11-19 16:36": 245, "2026-11-19 16:37": 76}, "dewiki": {"2026-11-19 13:30": 10, "2026-11-19 13:31": 4, "2026-11-19 13:32": 9, "2026-11-19 13:33": 6, "2026-11-19 13:34": 5, "2026-11-19 13:35": 10, "2026-11-19 13:36": 14, "2026-11-19 13:37": 10, "2026-11-19 13:38": 9, "2026-11-19 13:39": 12, "2026-11-19 13:40": 13, "2026-11-19 13:41": 12, "2026-11-19 13:42": 9, "2026-11-19 13:43": 15, "2026-11-19 13:44": 8, "2026-11-19 13:45": 18, "2026-11-19 13:46": 11, "2026-11-19 13:47": 11, "2026-11-19 13:48": 9, "2026-11-19 13:49": 15, "2026-11-19 13:50": 14, "2026-11-19 13:51": 18, "2026-11-19 13:52": 13, "2026-11-19 13:53": 11, "2026-11-19 13:54": 17, "2026-11-19 13:55": 13, "2026-11-19 13:56": 12, "2026-11-19 13:57": 13, "2026-11-19 13:58": 12, "2026-11-19 13:59": 15, "2026-11-19 14:00": 18, "2026-11-19 14:01": 36, "2026-11-19 14:02": 31, "2026-11-19 14:03": 36, "2026-11-19 14:04": 19, "2026-11-19 14:05": 12, "2026-11-19 14:06": 16, "2026-11-19 14:07": 18, "2026-11-19 14:08": 18, "2026-11-19 14:09": 27, "2026-11-19 14:10": 26, "2026-11-19 14:11": 40, "2026-11-19 14:12": 30, "2026-11-19 14:13": 27, "2026-11-19 14:14": 15, "2026-11-19 14:15": 21, "2026-11-19 14:16": 30, "2026-11-19 14:17": 17, "2026-11-19 14:18": 22, "2026-11-19 14:19": 27, "2026-11-19 14:20": 25, "2026-11-19 14:21": 18, "2026-11-19 14:22": 26, "2026-11-19 14:23": 25, "2026-11-19 14:24": 23, "2026-11-19 14:25": 30, "2026-11-19 14:26": 22, "2026-11-19 14:27": 27, "2026-11-19 14:28": 15, "2026-11-19 14:29": 19, "2026-11-19 14:30": 22, "2026-11-19 14:31": 13, "2026-11-19 14:32": 50, "2026-11-19 14:33": 31, "2026-11-19 14:43": 4, "2026-11-19 14:44": 18, "2026-11-19 14:45": 20, "2026-11-19 14:46": 21, "2026-11-19 14:47": 24, "2026-11-19 14:48": 21, "2026-11-19 14:49": 29, "2026-11-19 14:50": 28, "2026-11-19 14:51": 28, "2026-11-19 14:52": 21, "2026-11-19 14:53": 25, "2026-11-19 14:54": 18, "2026-11-19 14:55": 22, "2026-11-19 14:56": 26, "2026-11-19 14:57": 23, "2026-11-19 14:58": 22, "2026-11-19 14:59": 24, "2026-11-19 15:00": 33, "2026-11-19 15:01": 9, "2026-11-19 16:16": 15, "2026-11-19 16:17": 24, "2026-11-19 16:18": 18, "2026-11-19 16:19": 21, "2026-11-19 16:20": 14, "2026-11-19 16:21": 20, "2026-11-19 16:22": 21, "2026-11-19 16:23": 18, "2026-11-19 16:24": 17, "2026-11-19 16:25": 15, "2026-11-19 16:26": 25, "2026-11-19 16:27": 16, "2026-11-19 16:28": 16, "2026-11-19 16:29": 15, "2026-11-19 16:30": 22, "2026-11-19 16:31": 15, "2026-11-19 16:32": 26, "2026-11-19 16:33": 22, "2026-11-19 16:34": 13, "2026-11-19 16:35": 23, "2026-11-19 16:36": 20, "2026-11-19 16:37": 4}, "enwiki": {"2026-11-19 13:30": 34, "2026-11-19 13:31": 26, "2026-11-19 13:32": 19, "2026-11-19 13:33": 50, "2026-11-19 13:34": 37, "2026-11-19 13:35": 34, "2026-11-19 13:36": 50, "2026-11-19 13:37": 39, "2026-11-19 13:38": 42, "2026-11-19 13:39": 49, "2026-11-19 13:40": 41, "2026-11-19 13:41": 33, "2026-11-19 13:42": 42, "2026-11-19 13:43": 55, "2026-11-19 13:44": 57, "2026-11-19 13:45": 64, "2026-11-19 13:46": 57, "2026-11-19 13:47": 52, "2026-11-19 13:48": 53, "2026-11-19 13:49": 61, "2026-11-19 13:50": 58, "2026-11-19 13:51": 64, "2026-11-19 13:52": 65, "2026-11-19 13:53": 41, "2026-11-19 13:54": 43, "2026-11-19 13:55": 41, "2026-11-19 13:56": 55, "2026-11-19 13:57": 64, "2026-11-19 13:58": 58, "2026-11-19 13:59": 58, "2026-11-19 14:00": 63, "2026-11-19 14:01": 79, "2026-11-19 14:02": 57, "2026-11-19 14:03": 45, "2026-11-19 14:04": 52, "2026-11-19 14:05": 68, "2026-11-19 14:06": 51, "2026-11-19 14:07": 49, "2026-11-19 14:08": 40, "2026-11-19 14:09": 44, "2026-11-19 14:10": 44, "2026-11-19 14:11": 59, "2026-11-19 14:12": 54, "2026-11-19 14:13": 42, "2026-11-19 14:14": 42, "2026-11-19 14:15": 70, "2026-11-19 14:16": 85, "2026-11-19 14:17": 46, "2026-11-19 14:18": 40, "2026-11-19 14:19": 56, "2026-11-19 14:20": 57, "2026-11-19 14:21": 75, "2026-11-19 14:22": 63, "2026-11-19 14:23": 416, "2026-11-19 14:24": 71, "2026-11-19 14:25": 63, "2026-11-19 14:26": 66, "2026-11-19 14:27": 78, "2026-11-19 14:28": 80, "2026-11-19 14:29": 56, "2026-11-19 14:30": 70, "2026-11-19 14:31": 64, "2026-11-19 14:32": 65, "2026-11-19 14:33": 43, "2026-11-19 14:43": 9, "2026-11-19 14:44": 61, "2026-11-19 14:45": 69, "2026-11-19 14:46": 55, "2026-11-19 14:47": 68, "2026-11-19 14:48": 52, "2026-11-19 14:49": 60, "2026-11-19 14:50": 70, "2026-11-19 14:51": 43, "2026-11-19 14:52": 55, "2026-11-19 14:53": 93, "2026-11-19 14:54": 43, "2026-11-19 14:55": 55, "2026-11-19 14:56": 56, "2026-11-19 14:57": 56, "2026-11-19 14:58": 47, "2026-11-19 14:59": 60, "2026-11-19 15:00": 75, "2026-11-19 15:01": 39, "2026-11-19 16:16": 35, "2026-11-19 16:17": 53, "2026-11-19 16:18": 93, "2026-11-19 16:19": 76, "2026-11-19 16:20": 59, "2026-11-19 16:21": 67, "2026-11-19 16:22": 89, "2026-11-19 16:23": 81, "2026-11-19 16:24": 82, "2026-11-19 16:25": 85, "2026-11-19 16:26": 88, "2026-11-19 16:27": 89, "2026-11-19 16:28": 85, "2026-11-19 16:29": 88, "2026-11-19 16:30": 90, "2026-11-19 16:31": 79, "2026-11-19 16:32": 89, "2026-11-19 16:33": 84, "2026-11-19 16:34": 85, "2026-11-19 16:35": 83, "2026-11-19 16:36": 98, "2026-11-19 16:37": 32}, "ttwiki": {"2026-11-19 13:30": 17, "2026-11-19 13:31": 7, "2026-11-19 13:32": 10, "2026-11-19 13:33": 19, "2026-11-19 13:34": 17, "2026-11-19 13:35": 17, "2026-11-19 13:36": 20, "2026-11-19 13:37": 22, "2026-11-19 13:38": 21, "2026-11-19 13:39": 21, "2026-11-19 13:40": 19, "2026-11-19 13:41": 18, "2026-11-19 13:42": 16, "2026-11-19 13:43": 22, "2026-11-19 13:44": 22, "2026-11-19 13:45": 26, "2026-11-19 13:46": 24, "2026-11-19 13:47": 23, "2026-11-19 13:48": 24, "2026-11-19 13:49": 25, "2026-11-19 13:50": 24, "2026-11-19 13:51": 23, "2026-11-19 13:52": 23, "2026-11-19 13:53": 21, "2026-11-19 13:54": 23, "2026-11-19 13:55": 22, "2026-11-19 13:56": 27, "2026-11-19 13:57": 23, "2026-11-19 13:58": 24, "2026-11-19 13:59": 22, "2026-11-19 14:00": 25, "2026-11-19 14:01": 24, "2026-11-19 14:02": 26, "2026-11-19 14:03": 25, "2026-11-19 14:04": 23, "2026-11-19 14:05": 26, "2026-11-19 14:06": 23, "2026-11-19 14:07": 26, "2026-11-19 14:08": 23, "2026-11-19 14:09": 22, "2026-11-19 14:10": 25, "2026-11-19 14:11": 23, "2026-11-19 14:12": 23, "2026-11-19 14:13": 23, "2026-11-19 14:14": 25, "2026-11-19 14:15": 27, "2026-11-19 14:16": 22, "2026-11-19 14:17": 24, "2026-11-19 14:18": 26, "2026-11-19 14:19": 23, "2026-11-19 14:20": 25, "2026-11-19 14:21": 26, "2026-11-19 14:22": 23, "2026-11-19 14:23": 25, "2026-11-19 14:24": 26, "2026-11-19 14:25": 24, "2026-11-19 14:26": 25, "2026-11-19 14:27": 23, "2026-11-19 14:28": 23, "2026-11-19 14:29": 25, "2026-11-19 14:30": 25, "2026-11-19 14:31": 25, "2026-11-19 14:32": 23, "2026-11-19 14:33": 18, "2026-11-19 14:43": 2, "2026-11-19 14:44": 25, "2026-11-19 14:45": 25, "2026-11-19 14:46": 25, "2026-11-19 14:47": 26, "2026-11-19 14:48": 25, "2026-11-19 14:49": 24, "2026-11-19 14:50": 25, "2026-11-19 14:51": 25, "2026-11-19 14:52": 25, "2026-11-19 14:53": 23, "2026-11-19 14:54": 25, "2026-11-19 14:55": 22, "2026-11-19 14:56": 25, "2026-11-19 14:57": 25, "2026-11-19 14:58": 24, "2026-11-19 14:59": 26, "2026-11-19 15:00": 25, "2026-11-19 15:01": 15, "2026-11-19 16:16": 14, "2026-11-19 16:17": 21, "2026-11-19 16:18": 21, "2026-11-19 16:19": 25, "2026-11-19 16:20": 25, "2026-11-19 16:21": 24, "2026-11-19 16:22": 26, "2026-11-19 16:23": 23, "2026-11-19 16:24": 24, "2026-11-19 16:25": 25, "2026-11-19 16:26": 23, "2026-11-19 16:27": 24, "2026-11-19 16:28": 24, "2026-11-19 16:29": 24, "2026-11-19 16:30": 25, "2026-11-19 16:31": 23, "2026-11-19 16:32": 25, "2026-11-19 16:33": 24, "2026-11-19 16:34": 23, "2026-11-19 16:35": 25, "2026-11-19 16:36": 24, "2026-11-19 16:37": 9}}, "bot_manusia": [{"wiki": "wikidatawiki", "total": 40746, "bot": 2021, "manusia": 38725, "p_bot": 4.96, "p_manusia": 95.04}, {"wiki": "commonswiki", "total": 24332, "bot": 18455, "manusia": 5877, "p_bot": 75.85, "p_manusia": 24.15}, {"wiki": "enwiki", "total": 6571, "bot": 1211, "manusia": 5360, "p_bot": 18.43, "p_manusia": 81.57}, {"wiki": "ttwiki", "total": 2380, "bot": 2379, "manusia": 1, "p_bot": 99.96, "p_manusia": 0.04}, {"wiki": "dewiki", "total": 1996, "bot": 649, "manusia": 1347, "p_bot": 32.52, "p_manusia": 67.48}, {"wiki": "zhwiki", "total": 1847, "bot": 1051, "manusia": 796, "p_bot": 56.9, "p_manusia": 43.1}, {"wiki": "arwiki", "total": 1473, "bot": 1238, "manusia": 235, "p_bot": 84.05, "p_manusia": 15.95}, {"wiki": "enwiktionary", "total": 1270, "bot": 1009, "manusia": 261, "p_bot": 79.45, "p_manusia": 20.55}, {"wiki": "frwiki", "total": 1105, "bot": 185, "manusia": 920, "p_bot": 16.74, "p_manusia": 83.26}, {"wiki": "kaawiki", "total": 1042, "bot": 29, "manusia": 1013, "p_bot": 2.78, "p_manusia": 97.22}, {"wiki": "ruwiktionary", "total": 993, "bot": 979, "manusia": 14, "p_bot": 98.59, "p_manusia": 1.41}, {"wiki": "plwiki", "total": 937, "bot": 713, "manusia": 224, "p_bot": 76.09, "p_manusia": 23.91}, {"wiki": "euwiki", "total": 932, "bot": 892, "manusia": 40, "p_bot": 95.71, "p_manusia": 4.29}, {"wiki": "ruwiki", "total": 921, "bot": 142, "manusia": 779, "p_bot": 15.42, "p_manusia": 84.58}, {"wiki": "ptwiki", "total": 855, "bot": 261, "manusia": 594, "p_bot": 30.53, "p_manusia": 69.47}, {"wiki": "jawiki", "total": 773, "bot": 156, "manusia": 617, "p_bot": 20.18, "p_manusia": 79.82}, {"wiki": "ruwikisource", "total": 725, "bot": 573, "manusia": 152, "p_bot": 79.03, "p_manusia": 20.97}, {"wiki": "itwiki", "total": 625, "bot": 131, "manusia": 494, "p_bot": 20.96, "p_manusia": 79.04}, {"wiki": "eswiki", "total": 609, "bot": 246, "manusia": 363, "p_bot": 40.39, "p_manusia": 59.61}, {"wiki": "jawiktionary", "total": 589, "bot": 583, "manusia": 6, "p_bot": 98.98, "p_manusia": 1.02}, {"wiki": "svwiki", "total": 524, "bot": 396, "manusia": 128, "p_bot": 75.57, "p_manusia": 24.43}, {"wiki": "fawiki", "total": 437, "bot": 72, "manusia": 365, "p_bot": 16.48, "p_manusia": 83.52}, {"wiki": "cawiki", "total": 435, "bot": 330, "manusia": 105, "p_bot": 75.86, "p_manusia": 24.14}, {"wiki": "urwiki", "total": 370, "bot": 272, "manusia": 98, "p_bot": 73.51, "p_manusia": 26.49}, {"wiki": "kowiki", "total": 367, "bot": 48, "manusia": 319, "p_bot": 13.08, "p_manusia": 86.92}, {"wiki": "srwiki", "total": 329, "bot": 296, "manusia": 33, "p_bot": 89.97, "p_manusia": 10.03}, {"wiki": "hewiki", "total": 327, "bot": 53, "manusia": 274, "p_bot": 16.21, "p_manusia": 83.79}, {"wiki": "nlwiki", "total": 303, "bot": 43, "manusia": 260, "p_bot": 14.19, "p_manusia": 85.81}, {"wiki": "zhwikisource", "total": 294, "bot": 248, "manusia": 46, "p_bot": 84.35, "p_manusia": 15.65}, {"wiki": "ukwiki", "total": 268, "bot": 56, "manusia": 212, "p_bot": 20.9, "p_manusia": 79.1}, {"wiki": "trwiki", "total": 264, "bot": 159, "manusia": 105, "p_bot": 60.23, "p_manusia": 39.77}, {"wiki": "viwiki", "total": 255, "bot": 125, "manusia": 130, "p_bot": 49.02, "p_manusia": 50.98}, {"wiki": "idwiki", "total": 254, "bot": 48, "manusia": 206, "p_bot": 18.9, "p_manusia": 81.1}, {"wiki": "bewiki", "total": 230, "bot": 159, "manusia": 71, "p_bot": 69.13, "p_manusia": 30.87}, {"wiki": "hywiki", "total": 225, "bot": 146, "manusia": 79, "p_bot": 64.89, "p_manusia": 35.11}, {"wiki": "kawiki", "total": 222, "bot": 13, "manusia": 209, "p_bot": 5.86, "p_manusia": 94.14}, {"wiki": "dewiktionary", "total": 214, "bot": 178, "manusia": 36, "p_bot": 83.18, "p_manusia": 16.82}, {"wiki": "thwiktionary", "total": 194, "bot": 0, "manusia": 194, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "azwiki", "total": 190, "bot": 128, "manusia": 62, "p_bot": 67.37, "p_manusia": 32.63}, {"wiki": "thwiki", "total": 176, "bot": 61, "manusia": 115, "p_bot": 34.66, "p_manusia": 65.34}, {"wiki": "bnwiki", "total": 164, "bot": 57, "manusia": 107, "p_bot": 34.76, "p_manusia": 65.24}, {"wiki": "cswiki", "total": 145, "bot": 16, "manusia": 129, "p_bot": 11.03, "p_manusia": 88.97}, {"wiki": "bgwiki", "total": 143, "bot": 52, "manusia": 91, "p_bot": 36.36, "p_manusia": 63.64}, {"wiki": "rowiki", "total": 143, "bot": 88, "manusia": 55, "p_bot": 61.54, "p_manusia": 38.46}, {"wiki": "metawiki", "total": 126, "bot": 30, "manusia": 96, "p_bot": 23.81, "p_manusia": 76.19}, {"wiki": "dewikisource", "total": 123, "bot": 88, "manusia": 35, "p_bot": 71.54, "p_manusia": 28.46}, {"wiki": "cywiki", "total": 121, "bot": 109, "manusia": 12, "p_bot": 90.08, "p_manusia": 9.92}, {"wiki": "fiwiki", "total": 114, "bot": 33, "manusia": 81, "p_bot": 28.95, "p_manusia": 71.05}, {"wiki": "elwiki", "total": 109, "bot": 28, "manusia": 81, "p_bot": 25.69, "p_manusia": 74.31}, {"wiki": "huwiki", "total": 105, "bot": 34, "manusia": 71, "p_bot": 32.38, "p_manusia": 67.62}, {"wiki": "afwiki", "total": 102, "bot": 86, "manusia": 16, "p_bot": 84.31, "p_manusia": 15.69}, {"wiki": "frwiktionary", "total": 98, "bot": 21, "manusia": 77, "p_bot": 21.43, "p_manusia": 78.57}, {"wiki": "nowiki", "total": 97, "bot": 61, "manusia": 36, "p_bot": 62.89, "p_manusia": 37.11}, {"wiki": "glwiki", "total": 95, "bot": 8, "manusia": 87, "p_bot": 8.42, "p_manusia": 91.58}, {"wiki": "uzwiki", "total": 90, "bot": 52, "manusia": 38, "p_bot": 57.78, "p_manusia": 42.22}, {"wiki": "hrwiki", "total": 87, "bot": 63, "manusia": 24, "p_bot": 72.41, "p_manusia": 27.59}, {"wiki": "eowiki", "total": 82, "bot": 42, "manusia": 40, "p_bot": 51.22, "p_manusia": 48.78}, {"wiki": "tawiki", "total": 77, "bot": 34, "manusia": 43, "p_bot": 44.16, "p_manusia": 55.84}, {"wiki": "zh_min_nanwiki", "total": 73, "bot": 46, "manusia": 27, "p_bot": 63.01, "p_manusia": 36.99}, {"wiki": "enwikivoyage", "total": 72, "bot": 28, "manusia": 44, "p_bot": 38.89, "p_manusia": 61.11}, {"wiki": "mrwiki", "total": 69, "bot": 36, "manusia": 33, "p_bot": 52.17, "p_manusia": 47.83}, {"wiki": "fiwiktionary", "total": 68, "bot": 46, "manusia": 22, "p_bot": 67.65, "p_manusia": 32.35}, {"wiki": "incubatorwiki", "total": 65, "bot": 41, "manusia": 24, "p_bot": 63.08, "p_manusia": 36.92}, {"wiki": "aswiki", "total": 64, "bot": 20, "manusia": 44, "p_bot": 31.25, "p_manusia": 68.75}, {"wiki": "liwiktionary", "total": 61, "bot": 0, "manusia": 61, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "skwiki", "total": 60, "bot": 37, "manusia": 23, "p_bot": 61.67, "p_manusia": 38.33}, {"wiki": "tewiki", "total": 57, "bot": 8, "manusia": 49, "p_bot": 14.04, "p_manusia": 85.96}, {"wiki": "enwikisource", "total": 52, "bot": 1, "manusia": 51, "p_bot": 1.92, "p_manusia": 98.08}, {"wiki": "kkwiki", "total": 51, "bot": 5, "manusia": 46, "p_bot": 9.8, "p_manusia": 90.2}, {"wiki": "lvwiki", "total": 51, "bot": 11, "manusia": 40, "p_bot": 21.57, "p_manusia": 78.43}, {"wiki": "frwikisource", "total": 50, "bot": 0, "manusia": 50, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "zh_yuewiki", "total": 48, "bot": 11, "manusia": 37, "p_bot": 22.92, "p_manusia": 77.08}, {"wiki": "arzwiki", "total": 41, "bot": 9, "manusia": 32, "p_bot": 21.95, "p_manusia": 78.05}, {"wiki": "mswiki", "total": 40, "bot": 1, "manusia": 39, "p_bot": 2.5, "p_manusia": 97.5}, {"wiki": "alswiki", "total": 40, "bot": 0, "manusia": 40, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "hiwiki", "total": 39, "bot": 17, "manusia": 22, "p_bot": 43.59, "p_manusia": 56.41}, {"wiki": "plwikisource", "total": 37, "bot": 3, "manusia": 34, "p_bot": 8.11, "p_manusia": 91.89}, {"wiki": "simplewiki", "total": 37, "bot": 18, "manusia": 19, "p_bot": 48.65, "p_manusia": 51.35}, {"wiki": "labswiki", "total": 35, "bot": 31, "manusia": 4, "p_bot": 88.57, "p_manusia": 11.43}, {"wiki": "etwiki", "total": 34, "bot": 11, "manusia": 23, "p_bot": 32.35, "p_manusia": 67.65}, {"wiki": "dawiki", "total": 34, "bot": 14, "manusia": 20, "p_bot": 41.18, "p_manusia": 58.82}, {"wiki": "swwiki", "total": 34, "bot": 18, "manusia": 16, "p_bot": 52.94, "p_manusia": 47.06}, {"wiki": "amwiki", "total": 33, "bot": 0, "manusia": 33, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "specieswiki", "total": 32, "bot": 5, "manusia": 27, "p_bot": 15.63, "p_manusia": 84.38}, {"wiki": "nlwiktionary", "total": 25, "bot": 17, "manusia": 8, "p_bot": 68.0, "p_manusia": 32.0}, {"wiki": "be_x_oldwiki", "total": 24, "bot": 2, "manusia": 22, "p_bot": 8.33, "p_manusia": 91.67}, {"wiki": "kywiki", "total": 24, "bot": 0, "manusia": 24, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ltwiki", "total": 23, "bot": 19, "manusia": 4, "p_bot": 82.61, "p_manusia": 17.39}, {"wiki": "hawiki", "total": 23, "bot": 23, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "elwiktionary", "total": 22, "bot": 12, "manusia": 10, "p_bot": 54.55, "p_manusia": 45.45}, {"wiki": "zhwiktionary", "total": 21, "bot": 0, "manusia": 21, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "cswiktionary", "total": 20, "bot": 0, "manusia": 20, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "jvwiki", "total": 20, "bot": 20, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "bnwikisource", "total": 19, "bot": 0, "manusia": 19, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mswiktionary", "total": 18, "bot": 0, "manusia": 18, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tawikisource", "total": 18, "bot": 0, "manusia": 18, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mediawikiwiki", "total": 18, "bot": 6, "manusia": 12, "p_bot": 33.33, "p_manusia": 66.67}, {"wiki": "slwiki", "total": 18, "bot": 6, "manusia": 12, "p_bot": 33.33, "p_manusia": 66.67}, {"wiki": "cewiki", "total": 17, "bot": 14, "manusia": 3, "p_bot": 82.35, "p_manusia": 17.65}, {"wiki": "shwiki", "total": 17, "bot": 12, "manusia": 5, "p_bot": 70.59, "p_manusia": 29.41}, {"wiki": "jbowiki", "total": 16, "bot": 0, "manusia": 16, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "zhwikiversity", "total": 16, "bot": 1, "manusia": 15, "p_bot": 6.25, "p_manusia": 93.75}, {"wiki": "sqwiki", "total": 15, "bot": 14, "manusia": 1, "p_bot": 93.33, "p_manusia": 6.67}, {"wiki": "itwikisource", "total": 14, "bot": 0, "manusia": 14, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mkwiki", "total": 13, "bot": 8, "manusia": 5, "p_bot": 61.54, "p_manusia": 38.46}, {"wiki": "mlwiki", "total": 12, "bot": 9, "manusia": 3, "p_bot": 75.0, "p_manusia": 25.0}, {"wiki": "ptwikiversity", "total": 12, "bot": 0, "manusia": 12, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "viwiktionary", "total": 12, "bot": 0, "manusia": 12, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mywiki", "total": 12, "bot": 4, "manusia": 8, "p_bot": 33.33, "p_manusia": 66.67}, {"wiki": "igwiki", "total": 11, "bot": 11, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "siwikibooks", "total": 10, "bot": 0, "manusia": 10, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "dewikivoyage", "total": 10, "bot": 0, "manusia": 10, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "idwikimedia", "total": 10, "bot": 0, "manusia": 10, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "plwiktionary", "total": 10, "bot": 0, "manusia": 10, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "test2wiki", "total": 10, "bot": 10, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "bswiki", "total": 10, "bot": 4, "manusia": 6, "p_bot": 40.0, "p_manusia": 60.0}, {"wiki": "tgwiki", "total": 9, "bot": 0, "manusia": 9, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tokwiki", "total": 9, "bot": 0, "manusia": 9, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "newiki", "total": 8, "bot": 0, "manusia": 8, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "pnbwiki", "total": 8, "bot": 7, "manusia": 1, "p_bot": 87.5, "p_manusia": 12.5}, {"wiki": "kbdwiktionary", "total": 7, "bot": 0, "manusia": 7, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "trwiktionary", "total": 7, "bot": 0, "manusia": 7, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "abstractwiki", "total": 7, "bot": 0, "manusia": 7, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ocwiki", "total": 7, "bot": 1, "manusia": 6, "p_bot": 14.29, "p_manusia": 85.71}, {"wiki": "warwiki", "total": 7, "bot": 7, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "knwiki", "total": 7, "bot": 0, "manusia": 7, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "itwikivoyage", "total": 7, "bot": 0, "manusia": 7, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mgwiktionary", "total": 6, "bot": 6, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "arwiktionary", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "itwikiquote", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "zghwiki", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "azbwiki", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "itwiktionary", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "eswikisource", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mnwiki", "total": 6, "bot": 0, "manusia": 6, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "niawiktionary", "total": 5, "bot": 0, "manusia": 5, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "wikifunctionswiki", "total": 5, "bot": 0, "manusia": 5, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "vlswiki", "total": 5, "bot": 0, "manusia": 5, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "enwikibooks", "total": 5, "bot": 0, "manusia": 5, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "siwiktionary", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ckbwiki", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "iglwiki", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "lbwiki", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "glwiktionary", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "enwikiversity", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "eswikivoyage", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "orwiki", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "hewikisource", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "hrwiktionary", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tewikisource", "total": 4, "bot": 0, "manusia": 4, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "bawiki", "total": 4, "bot": 2, "manusia": 2, "p_bot": 50.0, "p_manusia": 50.0}, {"wiki": "banwiki", "total": 3, "bot": 3, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "jawikibooks", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "lijwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tlwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "bclwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "idwikibooks", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ptwikisource", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "sswiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "vepwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "guwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mgwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "sdwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "astwiki", "total": 3, "bot": 1, "manusia": 2, "p_bot": 33.33, "p_manusia": 66.67}, {"wiki": "cebwiki", "total": 3, "bot": 3, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "iswiki", "total": 3, "bot": 2, "manusia": 1, "p_bot": 66.67, "p_manusia": 33.33}, {"wiki": "swwiktionary", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tcywikisource", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "diqwiki", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "srwiktionary", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "eswikiquote", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "uawikimedia", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ltwiktionary", "total": 3, "bot": 0, "manusia": 3, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "barwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "csbwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "iawiki", "total": 2, "bot": 2, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "pcmwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "eowikisource", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "sawikisource", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "trwikiquote", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "eswiktionary", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "kgwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "magwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "cuwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "sahwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "avwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "cswikisource", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "hiwikiquote", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "nnwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ptwiktionary", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "sourceswiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "gawiki", "total": 2, "bot": 1, "manusia": 1, "p_bot": 50.0, "p_manusia": 50.0}, {"wiki": "kswiki", "total": 2, "bot": 2, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "bnwikivoyage", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "jawikisource", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "isvwiki", "total": 2, "bot": 0, "manusia": 2, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tyvwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "bgwikisource", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "brwiki", "total": 1, "bot": 1, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "cawiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "pcdwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ukwikisource", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ganwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "lawiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ocwiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "vecwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "yowiki", "total": 1, "bot": 1, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "cowiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "emlwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "kwwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "frwikivoyage", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "ndswiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "svwikisource", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "anwiki", "total": 1, "bot": 1, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "chrwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "enwikiquote", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "testwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "gdwiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "iuwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "svwiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "hywwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "kmwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tcywiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "zhwikivoyage", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "arwikiversity", "total": 1, "bot": 1, "manusia": 0, "p_bot": 100.0, "p_manusia": 0.0}, {"wiki": "sgwiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "cvwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "kowiktionary", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "scwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "thwikiquote", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "tswiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "dewikiversity", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "lawikisource", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "azwikibooks", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "lldwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "mznwiki", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}, {"wiki": "zhwikiquote", "total": 1, "bot": 0, "manusia": 1, "p_bot": 0.0, "p_manusia": 100.0}], "selisih_byte": [{"type": "edit", "jumlah": "100769", "punya_ukuran": "100769", "rata_abs_selisih_byte": "974.56", "median_abs_selisih_byte": "342.0"}, {"type": "categorize", "jumlah": "64930", "punya_ukuran": "0", "rata_abs_selisih_byte": "", "median_abs_selisih_byte": ""}, {"type": "log", "jumlah": "25797", "punya_ukuran": "0", "rata_abs_selisih_byte": "", "median_abs_selisih_byte": ""}, {"type": "new", "jumlah": "13504", "punya_ukuran": "13504", "rata_abs_selisih_byte": "1908.2", "median_abs_selisih_byte": "1384.0"}], "editor_idwiki": [{"title": "Hutan Kota UI", "editor_unik": "2", "jumlah_suntingan": "6"}, {"title": "Raja Juli Antoni", "editor_unik": "2", "jumlah_suntingan": "3"}, {"title": "Angel Lelga", "editor_unik": "1", "jumlah_suntingan": "8"}, {"title": "Marvel Cinematic Universe: Fase Lima", "editor_unik": "1", "jumlah_suntingan": "6"}, {"title": "Pembicaraan Pengguna:~2026-58660-35/Bak pasir", "editor_unik": "1", "jumlah_suntingan": "5"}, {"title": "Harimau Putih Terikat Cinta", "editor_unik": "1", "jumlah_suntingan": "4"}, {"title": "Novi Rubadi Sugito", "editor_unik": "1", "jumlah_suntingan": "4"}, {"title": "Pengguna:St3095/LN", "editor_unik": "1", "jumlah_suntingan": "4"}, {"title": "Roda", "editor_unik": "1", "jumlah_suntingan": "4"}, {"title": "Abronia fragrans", "editor_unik": "1", "jumlah_suntingan": "3"}], "lonjakan": [{"wiki": "wikidatawiki", "title": "Q62058936", "mulai": "2026-11-19 14:15", "akhir": "14:20", "jumlah_edit": "129", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141456983", "mulai": "2026-11-19 13:45", "akhir": "13:50", "jumlah_edit": "93", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q56627366", "mulai": "2026-11-19 14:05", "akhir": "14:10", "jumlah_edit": "67", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404487", "mulai": "2026-11-19 13:35", "akhir": "13:40", "jumlah_edit": "65", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404740", "mulai": "2026-11-19 13:45", "akhir": "13:50", "jumlah_edit": "61", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404732", "mulai": "2026-11-19 13:40", "akhir": "13:45", "jumlah_edit": "59", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q140533577", "mulai": "2026-11-19 16:20", "akhir": "16:25", "jumlah_edit": "59", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q55970429", "mulai": "2026-11-19 14:00", "akhir": "14:05", "jumlah_edit": "58", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404639", "mulai": "2026-11-19 13:40", "akhir": "13:45", "jumlah_edit": "53", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Lexeme:L1488756", "mulai": "2026-11-19 14:45", "akhir": "14:50", "jumlah_edit": "53", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Lexeme:L1536512", "mulai": "2026-11-19 14:30", "akhir": "14:35", "jumlah_edit": "53", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141456486", "mulai": "2026-11-19 16:30", "akhir": "16:35", "jumlah_edit": "51", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q57487060", "mulai": "2026-11-19 14:10", "akhir": "14:15", "jumlah_edit": "50", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q54801096", "mulai": "2026-11-19 13:55", "akhir": "14:00", "jumlah_edit": "47", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Lexeme:L1536528", "mulai": "2026-11-19 14:55", "akhir": "15:00", "jumlah_edit": "46", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q126387206", "mulai": "2026-11-19 14:30", "akhir": "14:35", "jumlah_edit": "46", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141691914", "mulai": "2026-11-19 13:50", "akhir": "13:55", "jumlah_edit": "45", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q29010599", "mulai": "2026-11-19 13:50", "akhir": "13:55", "jumlah_edit": "45", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404617", "mulai": "2026-11-19 13:40", "akhir": "13:45", "jumlah_edit": "43", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q140533589", "mulai": "2026-11-19 16:20", "akhir": "16:25", "jumlah_edit": "43", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q140533606", "mulai": "2026-11-19 16:25", "akhir": "16:30", "jumlah_edit": "42", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q30052083", "mulai": "2026-11-19 13:50", "akhir": "13:55", "jumlah_edit": "42", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q55918523", "mulai": "2026-11-19 14:00", "akhir": "14:05", "jumlah_edit": "42", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141690067", "mulai": "2026-11-19 16:35", "akhir": "16:40", "jumlah_edit": "41", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}, {"wiki": "wikidatawiki", "title": "Q141404735", "mulai": "2026-11-19 13:45", "akhir": "13:50", "jumlah_edit": "40", "editor_unik": "1", "edit_bot": "0", "dugaan": "satu editor beruntun"}], "trigger_detail": [{"trigger": "10 seconds", "batch": "2", "input_baris": "381", "inputRowsPerSecond": "38.1", "processedRowsPerSecond": "141.8", "durasi_batch_ms": "2685", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "3", "input_baris": "322", "inputRowsPerSecond": "32.2", "processedRowsPerSecond": "153.6", "durasi_batch_ms": "2096", "lag_event_max_dtk": "0.001"}, {"trigger": "10 seconds", "batch": "4", "input_baris": "361", "inputRowsPerSecond": "36.1", "processedRowsPerSecond": "120.2", "durasi_batch_ms": "3002", "lag_event_max_dtk": "0.001"}, {"trigger": "10 seconds", "batch": "5", "input_baris": "373", "inputRowsPerSecond": "37.3", "processedRowsPerSecond": "147.5", "durasi_batch_ms": "2529", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "6", "input_baris": "340", "inputRowsPerSecond": "34.0", "processedRowsPerSecond": "109.9", "durasi_batch_ms": "3095", "lag_event_max_dtk": "0.002"}, {"trigger": "10 seconds", "batch": "7", "input_baris": "296", "inputRowsPerSecond": "29.6", "processedRowsPerSecond": "152.3", "durasi_batch_ms": "1944", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "8", "input_baris": "336", "inputRowsPerSecond": "33.6", "processedRowsPerSecond": "107.0", "durasi_batch_ms": "3140", "lag_event_max_dtk": "0.002"}, {"trigger": "10 seconds", "batch": "9", "input_baris": "299", "inputRowsPerSecond": "29.9", "processedRowsPerSecond": "119.4", "durasi_batch_ms": "2505", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "10", "input_baris": "303", "inputRowsPerSecond": "30.3", "processedRowsPerSecond": "108.6", "durasi_batch_ms": "2790", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "11", "input_baris": "378", "inputRowsPerSecond": "37.8", "processedRowsPerSecond": "155.4", "durasi_batch_ms": "2433", "lag_event_max_dtk": "0.001"}, {"trigger": "10 seconds", "batch": "12", "input_baris": "364", "inputRowsPerSecond": "36.4", "processedRowsPerSecond": "115.4", "durasi_batch_ms": "3155", "lag_event_max_dtk": "0.002"}, {"trigger": "10 seconds", "batch": "13", "input_baris": "341", "inputRowsPerSecond": "34.1", "processedRowsPerSecond": "157.7", "durasi_batch_ms": "2162", "lag_event_max_dtk": "0.0"}, {"trigger": "10 seconds", "batch": "14", "input_baris": "330", "inputRowsPerSecond": "33.0", "processedRowsPerSecond": "123.5", "durasi_batch_ms": "2671", "lag_event_max_dtk": "0.001"}, {"trigger": "10 seconds", "batch": "15", "input_baris": "369", "inputRowsPerSecond": "36.9", "processedRowsPerSecond": "165.9", "durasi_batch_ms": "2224", "lag_event_max_dtk": "0.0"}, {"trigger": "30 seconds", "batch": "1", "input_baris": "1042", "inputRowsPerSecond": "38.5", "processedRowsPerSecond": "317.4", "durasi_batch_ms": "3283", "lag_event_max_dtk": "0.0"}, {"trigger": "30 seconds", "batch": "2", "input_baris": "1271", "inputRowsPerSecond": "42.4", "processedRowsPerSecond": "580.4", "durasi_batch_ms": "2190", "lag_event_max_dtk": "0.0"}, {"trigger": "30 seconds", "batch": "3", "input_baris": "1258", "inputRowsPerSecond": "41.9", "processedRowsPerSecond": "418.8", "durasi_batch_ms": "3003", "lag_event_max_dtk": "-0.999"}, {"trigger": "30 seconds", "batch": "4", "input_baris": "1218", "inputRowsPerSecond": "40.6", "processedRowsPerSecond": "515.4", "durasi_batch_ms": "2363", "lag_event_max_dtk": "0.001"}, {"trigger": "30 seconds", "batch": "5", "input_baris": "1106", "inputRowsPerSecond": "36.9", "processedRowsPerSecond": "325.4", "durasi_batch_ms": "3398", "lag_event_max_dtk": "0.001"}, {"trigger": "30 seconds", "batch": "6", "input_baris": "1094", "inputRowsPerSecond": "36.5", "processedRowsPerSecond": "404.9", "durasi_batch_ms": "2702", "lag_event_max_dtk": "0.0"}, {"trigger": "30 seconds", "batch": "7", "input_baris": "1210", "inputRowsPerSecond": "40.3", "processedRowsPerSecond": "429.1", "durasi_batch_ms": "2820", "lag_event_max_dtk": "0.002"}, {"trigger": "30 seconds", "batch": "8", "input_baris": "1219", "inputRowsPerSecond": "40.6", "processedRowsPerSecond": "567.2", "durasi_batch_ms": "2148", "lag_event_max_dtk": "0.002"}], "trigger_ringkas": [{"trigger": "10 seconds", "batch": "14", "input_per_batch": "342.4", "inputRowsPerSecond": "34.2", "processedRowsPerSecond": "134.2", "durasi_batch_ms": "2602.2", "perkiraan_latensi_dtk": "7.6"}, {"trigger": "30 seconds", "batch": "8", "input_per_batch": "1177.2", "inputRowsPerSecond": "39.7", "processedRowsPerSecond": "444.8", "durasi_batch_ms": "2738.4", "perkiraan_latensi_dtk": "17.7"}], "stream_timeline": [{"menit": "18:04", "streaming": 1182, "batch": 1182, "wikis": 69}, {"menit": "18:05", "streaming": 1116, "batch": 1116, "wikis": 59}, {"menit": "18:06", "streaming": 1172, "batch": 1172, "wikis": 65}, {"menit": "18:07", "streaming": 1240, "batch": 1240, "wikis": 62}], "stream_wiki_top": [{"wiki": "wikidatawiki", "edit": 1771}, {"wiki": "commonswiki", "edit": 1009}, {"wiki": "enwiki", "edit": 409}, {"wiki": "elwiktionary", "edit": 287}, {"wiki": "dewiki", "edit": 109}, {"wiki": "ttwiki", "edit": 97}, {"wiki": "frwiki", "edit": 83}, {"wiki": "ruwiktionary", "edit": 80}, {"wiki": "arwiki", "edit": 63}, {"wiki": "bewiki", "edit": 58}, {"wiki": "ruwiki", "edit": 58}, {"wiki": "zhwiki", "edit": 54}]};
+const PALETTE = ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#7c3aed", "#0ea5e9", "#ec4899", "#14b8a6"];
+const fmt = n => (n === null || n === undefined || isNaN(n)) ? "-" : Number(n).toLocaleString("id-ID");
+const escHtml = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const escJs = s => escHtml(s).replace(/'/g, "\\'");
+
+const tip = document.getElementById("tooltip");
+function showTip(evt, html) {
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+  const x = Math.min(window.innerWidth - 295, evt.clientX + 14);
+  const y = Math.max(12, evt.clientY - 46);
+  tip.style.left = x + "px";
+  tip.style.top = y + "px";
+}
+function hideTip() { tip.style.opacity = 0; }
+
+function toggleTheme() {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  document.getElementById("btn-theme").textContent = dark ? "🌙 Mode Gelap" : "☀️ Mode Terang";
+}
+
+// Tabs
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ==================== 1. INTERACTIVE ARCHITECTURE SVG ====================
+const STAGES = [
+  {
+    id: "source", x: 16, y: 24, w: 185, h: 98, color: "#dbeafe", stroke: "#2563eb",
+    title: "1. Sumber Data", sub: "Wikimedia EventStreams\nSSE (JSON Real-Time)",
+    desc: "Aliran langsung penyuntingan seluruh proyek Wikipedia global melalui protokol Server-Sent Events (SSE).",
+    metrics: [
+      ["Endpoint", "stream.wikimedia.org/v2/stream/recentchange"],
+      ["Format", "JSON event (id, wiki, type, title, user, bot, length, comment)"],
+      ["User-Agent", "UTS-BigData-AMIKOM/1.0 (HAPISH-GANK)"],
+      ["Reconnect", "Backoff eksponensial + Last-Event-ID"]
+    ]
+  },
+  {
+    id: "producer", x: 244, y: 24, w: 192, h: 98, color: "#fef3c7", stroke: "#d97706",
+    title: "2. Producer Python", sub: "Thread di PC Master\nHash IP · Filter · lz4",
+    desc: "Membaca SSE di thread latar PC Master (192.168.18.24), menyamarkan IP/akun sementara dengan HMAC-SHA256, membuang event canary, dan mengirim ke Kafka.",
+    metrics: [
+      ["Reliability", "acks=all · enable.idempotence=True · kompresi lz4"],
+      ["Partition Key", "wiki|title (murmur2_random → anti-skew CV 0.00)"],
+      ["Laju Rata-rata", "29.40 – 31.65 pesan/detik (sesi 1b: 0 gagal)"],
+      ["Total Sesi Akhir", "312,129 terkirim selama 219.7 menit"]
+    ]
+  },
+  {
+    id: "kafka", x: 479, y: 24, w: 205, h: 98, color: "#fee2e2", stroke: "#dc2626",
+    title: "3. Apache Kafka", sub: "192.168.18.24:9092\n4 Partisi · Retensi 72j",
+    desc: "Message broker terpusat untuk decoupling producer dan consumer, sekaligus kanal kendali (HAPISH-GANK-kontrol & HAPISH-GANK-status) antara Master dan Worker 1–2.",
+    metrics: [
+      ["Topic Utama", "HAPISH-GANK-wiki-raw (4 partisi, RF=1, retensi 72 jam)"],
+      ["Total Pesan", "1,484,111 pesan (P0: 402k, P1: 336k, P2: 381k, P3: 365k)"],
+      ["Kanal Kendali", "HAPISH-GANK-kontrol (1p) & HAPISH-GANK-status (3p)"],
+      ["Consumer Uji", "Worker 1 & 2 (0 hilang, 0 ganda normal; catch-up 6 dtk)"]
+    ]
+  },
+  {
+    id: "spark", x: 727, y: 24, w: 210, h: 98, color: "#dcfce7", stroke: "#16a34a",
+    title: "4. Spark Cluster & Stream", sub: "Master + Worker 1 & 2\nRDD · SQL · Streaming",
+    desc: "Spark 4.1.3 Standalone Cluster (Master 192.168.18.24:7077 + Worker 1 & 2) memproses batch snapshot 205,000 event (RDD & DataFrame/SQL) dan Structured Streaming (window 1m, watermark 2m).",
+    metrics: [
+      ["Worker Spark", "3 ALIVE (Master 2c/2GB, W1 4c/6GB, W2 4c/6GB)"],
+      ["Konsistensi", "205,000 baris unik · 237/237 wiki identik RDD = SQL"],
+      ["Optimasi SQL", "shuffle.partitions 200→4 (11.8x) · Broadcast (-97% shuffle)"],
+      ["Streaming 4c", "255/255 jendela final cocok (4,710 = 4,710, 0 selisih)"]
+    ]
+  },
+  {
+    id: "dashboard", x: 978, y: 24, w: 166, h: 98, color: "#f3e8ff", stroke: "#7c3aed",
+    title: "5. Dashboard UTS", sub: "Visualisasi Interaktif\nLive + Bukti Lengkap",
+    desc: "Antarmuka pemantauan real-time & analitik UTS: menampilkan topologi Master–Worker, lag Kafka, tren edit/menit, bot vs manusia, benchmark Spark, dan peringatan lonjakan.",
+    metrics: [
+      ["Sumber Data", "foreachBatch CSV (live) + laporan_uts/HAPISH-GANK/"],
+      ["Deteksi Lonjakan", "Ambang adaptif k = p99 = 5 edit / 5 menit"],
+      ["Auto-Refresh", "Mendukung Live Server (:8501) + Offline HTML"],
+      ["Cakupan", "Master + Worker 1 + Worker 2 (Soal 1a–4c lengkap)"]
+    ]
+  },
+  // Secondary row: Worker 1 & Worker 2
+  {
+    id: "workers", x: 479, y: 164, w: 458, h: 86, color: "#e0f2fe", stroke: "#0284c7",
+    title: "Node Terdistribusi: Worker 1 (fish-w1 / .40) & Worker 2 (fish-w2 / .14)",
+    sub: "Kafka Consumer Group (Decoupling Soal 1c) · Spark Executors (Soal 2–3) · Heartbeat & MD5 Snapshot Sync",
+    desc: "Kedua notebook Worker menjalankan agen Kafka (heartbeat tiap 5 dtk, ping 4.9–5.0 ms), consumer group uji decoupling dengan commit manual (at-least-once), penyalin snapshot MD5 identik, dan daemon Spark Worker.",
+    metrics: [
+      ["Worker 1", "fish-w1 / 192.168.18.40 · 4 core / 6144 MB · Ping 5.0 ms"],
+      ["Worker 2", "fish-w2 / 192.168.18.14 · 4 core / 6144 MB · Ping 4.9 ms"],
+      ["Snapshot Sync", "205,000 baris · MD5 86660c865b672fd6f9ab74dc4cb6da8b (MATCH)"],
+      ["Runtime Parity", "Python 3.14.8 · PySpark 4.1.3 · OpenJDK 21 LTS"]
+    ]
+  }
+];
+
+let selectedStage = "kafka";
+function renderArchitecture() {
+  const svg = document.getElementById("arch-svg");
+  let s = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>`;
+  // Arrows top row
+  const arrows = [
+    [201, 73, 242, 73, "SSE"],
+    [436, 73, 477, 73, "produce"],
+    [684, 73, 725, 73, "readStream / batch"],
+    [937, 73, 976, 73, "foreachBatch"]
+  ];
+  arrows.forEach(([x1, y1, x2, y2, lbl]) => {
+    s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="2" marker-end="url(#arr)"/>`;
+    s += `<text x="${(x1+x2)/2}" y="${y1-8}" text-anchor="middle" font-size="10.5" fill="var(--muted)" font-weight="600">${lbl}</text>`;
+  });
+  // Vertical connectors to Workers
+  s += `<line x1="580" y1="122" x2="580" y2="162" stroke="#0284c7" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arr)" marker-start="url(#arr)"/>`;
+  s += `<text x="590" y="147" font-size="10.5" fill="#0284c7" font-weight="600">kontrol / status / consumer group</text>`;
+  s += `<line x1="830" y1="122" x2="830" y2="162" stroke="#16a34a" stroke-width="2" marker-end="url(#arr)" marker-start="url(#arr)"/>`;
+  s += `<text x="840" y="147" font-size="10.5" fill="#16a34a" font-weight="600">Spark Executor (7077/7079)</text>`;
+  // Return arrow batch -> dashboard
+  s += `<path d="M 937 206 L 1061 206 L 1061 124" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arr)"/>`;
+  s += `<text x="1000" y="198" text-anchor="middle" font-size="10.5" fill="#7c3aed" font-weight="600">hasil cluster</text>`;
+
+  STAGES.forEach(st => {
+    const sel = st.id === selectedStage ? "selected" : "";
+    const lines = st.sub.split("\n");
+    s += `<g class="arch-node ${sel}" onclick="selectStage('${st.id}')">
+      <rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="12" fill="${st.color}" stroke="${st.stroke}" stroke-width="1.8"/>
+      <text x="${st.x + st.w/2}" y="${st.y + 28}" text-anchor="middle" font-size="13" font-weight="800" fill="#0f172a">${st.title}</text>
+      ${lines.map((ln, idx) => `<text x="${st.x + st.w/2}" y="${st.y + 50 + idx*17}" text-anchor="middle" font-size="11.2" fill="#334155">${ln}</text>`).join("")}
+    </g>`;
+  });
+  svg.innerHTML = s;
+
+  const cur = STAGES.find(x => x.id === selectedStage);
+  document.getElementById("stage-detail").innerHTML = `
+    <div>
+      <span class="badge b-blue" style="margin-bottom:6px;">Detail Tahap Terpilih</span>
+      <h3 style="font-size:15px;margin-bottom:6px;">${cur.title}</h3>
+      <p style="font-size:13px;color:var(--muted);">${cur.desc}</p>
+    </div>
+    <div>
+      <table>${cur.metrics.map(([k, v]) => `<tr><td style="font-weight:700;width:36%;color:var(--muted);">${k}</td><td class="mono">${v}</td></tr>`).join("")}</table>
+    </div>
+  `;
+}
+function selectStage(id) { selectedStage = id; renderArchitecture(); }
+
+// ==================== CLUSTER TABLE ====================
+function renderClusterTable(clusterList) {
+  const rows = clusterList || DATA.cluster;
+  document.getElementById("tbl-cluster").innerHTML = `
+    <thead><tr>
+      <th>Peran Node</th><th>Hostname / ID</th><th>IP Address</th><th>Port Layanan</th>
+      <th class="num">Core</th><th class="num">Memori</th><th class="num">Ping Kafka</th><th>Snapshot MD5</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows.map(c => `<tr>
+      <td><strong>${c.role}</strong></td>
+      <td class="mono">${c.node}</td>
+      <td class="mono">${c.ip}</td>
+      <td style="font-size:11.5px;color:var(--muted);">${c.ports}</td>
+      <td class="num">${c.cores}</td>
+      <td class="num">${fmt(c.mem_mb)} MB</td>
+      <td class="num">${c.ping_ms === 0 ? "Master" : c.ping_ms.toFixed(1) + " ms"}</td>
+      <td><span class="badge b-green">✓ Match</span></td>
+      <td><span class="badge ${c.status === "ALIVE" ? "b-green" : "b-warn"}">${c.status}</span></td>
+    </tr>`).join("")}</tbody>`;
+}
+
+// ==================== GENERIC SVG CHARTS ====================
+function drawMultiLine(containerId, labels, seriesList, opts = {}) {
+  const el = document.getElementById(containerId);
+  const W = opts.width || 660, H = opts.height || 260;
+  const pad = { t: 18, r: 22, b: 38, l: 48 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  let maxV = 1;
+  seriesList.forEach(sr => sr.values.forEach(v => { if (v > maxV) maxV = v; }));
+  maxV = Math.ceil(maxV * 1.12);
+
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ih - (ih * i / 4);
+    const val = Math.round(maxV * i / 4);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--border)" stroke-dasharray="3,3"/>`;
+    svg += `<text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmt(val)}</text>`;
+  }
+  const stepX = labels.length > 1 ? iw / (labels.length - 1) : iw;
+  const tickEvery = Math.max(1, Math.ceil(labels.length / 8));
+  labels.forEach((lb, i) => {
+    if (i % tickEvery === 0 || i === labels.length - 1) {
+      const x = pad.l + i * stepX;
+      svg += `<text x="${x}" y="${H - 12}" text-anchor="middle" font-size="10" fill="var(--muted)">${lb.slice(-5)}</text>`;
+    }
+  });
+
+  seriesList.forEach(sr => {
+    const pts = sr.values.map((v, i) => `${(pad.l + i * stepX).toFixed(1)},${(pad.t + ih - (v / maxV) * ih).toFixed(1)}`);
+    if (opts.area && seriesList.length === 1) {
+      svg += `<polygon points="${pad.l},${pad.t + ih} ${pts.join(" ")} ${pad.l + (labels.length - 1) * stepX},${pad.t + ih}" fill="${sr.color}" opacity="0.14"/>`;
+    }
+    svg += `<polyline fill="none" stroke="${sr.color}" stroke-width="2.2" points="${pts.join(" ")}"/>`;
+    const dotStep = Math.max(1, Math.floor(labels.length / 40));
+    sr.values.forEach((v, i) => {
+      if (i % dotStep === 0 || i === labels.length - 1 || labels.length <= 35) {
+        const cx = pad.l + i * stepX, cy = pad.t + ih - (v / maxV) * ih;
+        svg += `<circle cx="${cx}" cy="${cy}" r="${labels.length <= 35 ? 3.5 : 2.5}" fill="${sr.color}" style="cursor:pointer"
+          onmousemove="showTip(event, '<strong>${sr.name}</strong><br>${labels[i]}: <b>${fmt(v)}</b> ${opts.unit || ""}')"
+          onmouseleave="hideTip()"/>`;
+      }
+    });
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function drawHBar(containerId, items, opts = {}) {
+  const el = document.getElementById(containerId);
+  if (!items.length) { el.innerHTML = `<p style="color:var(--muted);font-size:13px;padding:12px;">Tidak ada data yang cocok.</p>`; return; }
+  const rowH = opts.rowH || 26;
+  const W = opts.width || 620;
+  const labelW = opts.labelW || 155;
+  const H = items.length * rowH + 26;
+  const barW = W - labelW - 72;
+  const maxV = Math.max(1, ...items.map(it => it.total));
+
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}">`;
+  items.forEach((it, idx) => {
+    const y = idx * rowH + 6;
+    const rawLbl = it.label.length > 26 ? it.label.slice(0, 24) + "…" : it.label;
+    svg += `<text x="${labelW - 8}" y="${y + 15}" text-anchor="end" font-size="11.2" fill="var(--text)">${escHtml(rawLbl)}</text>`;
+    if (it.segments) {
+      let curX = labelW;
+      it.segments.forEach(seg => {
+        const w = (seg.val / maxV) * barW;
+        svg += `<rect x="${curX}" y="${y + 3}" width="${Math.max(0, w)}" height="16" rx="3" fill="${seg.color}" style="cursor:pointer"
+          onmousemove="showTip(event, '<strong>${escJs(it.label)}</strong><br>${escJs(seg.name)}: <b>${fmt(seg.val)}</b> (${(100*seg.val/Math.max(1,it.total)).toFixed(1)}%)')"
+          onmouseleave="hideTip()"/>`;
+        curX += w;
+      });
+    } else {
+      const w = (it.total / maxV) * barW;
+      svg += `<rect x="${labelW}" y="${y + 3}" width="${Math.max(2, w)}" height="16" rx="4" fill="${it.color || "#2563eb"}" style="cursor:pointer"
+        onmousemove="showTip(event, '<strong>${escJs(it.label)}</strong><br>${escJs(opts.unit || "Jumlah")}: <b>${fmt(it.total)}</b>${it.extra ? "<br>" + escJs(it.extra) : ""}')"
+        onmouseleave="hideTip()"/>`;
+    }
+    svg += `<text x="${labelW + (it.total / maxV) * barW + 6}" y="${y + 15}" font-size="11" font-weight="700" fill="var(--muted)">${escHtml(it.valLabel || fmt(it.total))}</text>`;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function drawVBar(containerId, items, opts = {}) {
+  const el = document.getElementById(containerId);
+  const W = opts.width || 560, H = opts.height || 240;
+  const pad = { t: 24, r: 18, b: 44, l: 54 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const maxV = Math.max(1, ...items.map(i => i.val)) * 1.15;
+  const bw = Math.min(64, (iw / items.length) * 0.56);
+  const gap = iw / items.length;
+
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ih - (ih * i / 4);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--border)" stroke-dasharray="3,3"/>`;
+    svg += `<text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmt(Math.round(maxV * i / 4))}</text>`;
+  }
+  items.forEach((it, idx) => {
+    const cx = pad.l + gap * idx + gap / 2;
+    const h = (it.val / maxV) * ih;
+    const y = pad.t + ih - h;
+    svg += `<rect x="${cx - bw/2}" y="${y}" width="${bw}" height="${Math.max(2, h)}" rx="6" fill="${it.color || "#2563eb"}" style="cursor:pointer"
+      onmousemove="showTip(event, '<strong>${it.label}</strong><br>${it.tip || fmt(it.val)}')"
+      onmouseleave="hideTip()"/>`;
+    svg += `<text x="${cx}" y="${y - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)">${it.valLabel || fmt(it.val)}</text>`;
+    const lns = it.label.split("\n");
+    lns.forEach((ln, li) => {
+      svg += `<text x="${cx}" y="${pad.t + ih + 16 + li*13}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${ln}</text>`;
+    });
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+// ==================== RENDER ALL SECTIONS ====================
+const top5Wikis = Object.keys(DATA.epm_by_wiki);
+let activeWikis = new Set(top5Wikis);
+
+function renderEpmCharts() {
+  const makeSeries = () => top5Wikis.filter(w => activeWikis.has(w)).map((w, idx) => ({
+    name: w,
+    color: PALETTE[top5Wikis.indexOf(w) % PALETTE.length],
+    values: DATA.epm_minutes.map(m => DATA.epm_by_wiki[w][m] || 0)
+  }));
+  // Overview (all 5)
+  drawMultiLine("chart-overview-epm", DATA.epm_minutes, top5Wikis.map((w, i) => ({
+    name: w, color: PALETTE[i], values: DATA.epm_minutes.map(m => DATA.epm_by_wiki[w][m] || 0)
+  })), { unit: "edit/menit", height: 245 });
+
+  // Interactive Batch EPM
+  document.getElementById("epm-legend").innerHTML = top5Wikis.map((w, i) => `
+    <span class="legend-item ${activeWikis.has(w) ? "" : "off"}" onclick="toggleWiki('${w}')">
+      <span class="swatch" style="background:${PALETTE[i]}"></span>${w}
+    </span>`).join("");
+  drawMultiLine("chart-batch-epm", DATA.epm_minutes, makeSeries(), { width: 1120, height: 270, unit: "edit/menit" });
+}
+function toggleWiki(w) {
+  if (activeWikis.has(w) && activeWikis.size > 1) activeWikis.delete(w);
+  else activeWikis.add(w);
+  renderEpmCharts();
+}
+
+function renderOverviewBot() {
+  const top10 = DATA.bot_manusia.slice(0, 10).map(r => ({
+    label: r.wiki, total: r.total,
+    segments: [
+      { name: "Manusia", val: r.manusia, color: "#2563eb" },
+      { name: "Bot", val: r.bot, color: "#ef4444" }
+    ]
+  }));
+  drawHBar("chart-overview-bot", top10, { labelW: 115, rowH: 25 });
+}
+
+function renderKafkaTab() {
+  // Partitions
+  drawVBar("chart-kafka-part", DATA.offset_partisi.map((p, i) => ({
+    label: `Partisi ${p.partisi}\n(${p.laju}/dtk)`,
+    val: p.jumlah,
+    color: PALETTE[i],
+    valLabel: (p.jumlah / 1000).toFixed(1) + "k",
+    tip: `Total: <b>${fmt(p.jumlah)}</b> pesan<br>Laju 60 dtk: <b>${p.laju} msg/dtk</b> (+${fmt(p.delta_60s)})`
+  })), { height: 235 });
+
+  // Anti-skew proof
+  const sk = DATA.ringkasan["1a_skew"];
+  drawVBar("chart-kafka-skew", [
+    { label: "key = wiki\n(Hot Partition)", val: sk["partisi_terberat_%"]["key = wiki (simulasi)"], color: "#ef4444", valLabel: "59.8%", tip: "Maks/Rata-rata: <b>2.39x</b> · CV: <b>0.85</b> (Skew Parah)" },
+    { label: "key = wiki|title\n(Simulasi)", val: sk["partisi_terberat_%"]["key = wiki|title (simulasi)"], color: "#0ea5e9", valLabel: "25.0%", tip: "Maks/Rata-rata: <b>1.00x</b> · CV: <b>0.00</b> (Merata Ideal)" },
+    { label: "key = wiki|title\n(Asli di Topic)", val: sk["partisi_terberat_%"]["key = wiki|title (asli di topic)"], color: "#10b981", valLabel: "25.0%", tip: "Maks/Rata-rata: <b>1.00x</b> · CV: <b>0.00</b> (Terbukti Merata)" }
+  ], { height: 235 });
+
+  // Lag timeline (focus on B_berhenti & C_lanjut + tail of A_jalan so spike 3,777 is crystal clear!)
+  const lagPts = DATA.riwayat_lag.filter(x => !(x.fase === "A_jalan" && x.detik < 30));
+  const labels = lagPts.map(x => `${x.fase.split("_")[0]}:${x.detik}s`);
+  drawMultiLine("chart-kafka-lag", labels, [{
+    name: "Total Lag Consumer Group", color: "#f59e0b", values: lagPts.map(x => x.total_lag)
+  }], { width: 1120, height: 255, area: true, unit: "pesan tertunda" });
+
+  // Crash vs Normal table
+  document.getElementById("tbl-crash").innerHTML = `
+    <thead><tr><th>Partisi</th><th>Normal: Diproses</th><th class="num">Hilang</th><th class="num">Ganda</th><th>Crash: Diproses</th><th class="num">Hilang</th><th class="num">Ganda (Dedup)</th></tr></thead>
+    <tbody>${DATA.hilang_ganda.map((r, i) => {
+      const c = DATA.crash_tabel[i];
+      return `<tr>
+        <td><strong>P${r.partisi}</strong></td>
+        <td class="num">${fmt(r.diproses_total)}</td>
+        <td class="num"><span class="badge b-green">${r.hilang}</span></td>
+        <td class="num"><span class="badge b-green">${r.ganda}</span></td>
+        <td class="num">${fmt(c.diproses_total)}</td>
+        <td class="num"><span class="badge b-green">${c.hilang}</span></td>
+        <td class="num"><span class="badge b-warn">${c.ganda}</span></td>
+      </tr>`;
+    }).join("")}</tbody>`;
+
+  // Keputusan desain
+  document.getElementById("tbl-keputusan").innerHTML = `
+    <thead><tr><th>Keputusan</th><th>Nilai</th><th>Alasan Teknis</th></tr></thead>
+    <tbody>${DATA.keputusan.map(r => `<tr>
+      <td><strong>${r.Keputusan}</strong></td>
+      <td class="mono">${r.Nilai}</td>
+      <td style="font-size:12px;color:var(--muted);">${r.Alasan}</td>
+    </tr>`).join("")}</tbody>`;
+}
+
+function renderBotExplorer() {
+  const mode = document.getElementById("bot-filter").value;
+  const q = document.getElementById("bot-search").value.trim().toLowerCase();
+  let list = DATA.bot_manusia.slice();
+  if (q) list = list.filter(r => r.wiki.toLowerCase().includes(q));
+  else if (mode === "top15") list = list.slice(0, 12);
+  else if (mode === "bot") list = list.filter(r => r.total >= 100).sort((a, b) => b.p_bot - a.p_bot).slice(0, 12);
+  else if (mode === "human") list = list.filter(r => r.total >= 100).sort((a, b) => b.p_manusia - a.p_manusia).slice(0, 12);
+  else if (mode === "id") list = list.filter(r => /^(id|jv|su|ms|min|ban|bjn|ace|bug)wik/.test(r.wiki));
+
+  drawHBar("chart-batch-bot", list.slice(0, 12).map(r => ({
+    label: r.wiki, total: r.total,
+    segments: [
+      { name: "Manusia", val: r.manusia, color: "#2563eb" },
+      { name: "Bot", val: r.bot, color: "#ef4444" }
+    ]
+  })), { labelW: 115, rowH: 25 });
+
+  document.getElementById("tbl-bot").innerHTML = `
+    <thead><tr><th>Wiki</th><th class="num">Total</th><th class="num">Manusia</th><th class="num">Bot</th><th class="num">% Bot</th></tr></thead>
+    <tbody>${list.slice(0, 40).map(r => `<tr>
+      <td class="mono"><strong>${r.wiki}</strong></td>
+      <td class="num">${fmt(r.total)}</td>
+      <td class="num">${fmt(r.manusia)}</td>
+      <td class="num">${fmt(r.bot)}</td>
+      <td class="num"><span class="badge ${r.p_bot >= 70 ? "b-red" : r.p_bot >= 30 ? "b-warn" : "b-blue"}">${r.p_bot.toFixed(1)}%</span></td>
+    </tr>`).join("")}</tbody>`;
+}
+
+function renderBatchExtras() {
+  document.getElementById("tbl-types").innerHTML = `
+    <thead><tr><th>Tipe Event</th><th class="num">Jumlah</th><th class="num">Rata |Δ Byte|</th><th class="num">Median |Δ Byte|</th></tr></thead>
+    <tbody>${DATA.selisih_byte.map(r => `<tr>
+      <td><span class="badge b-blue">${r.type}</span></td>
+      <td class="num"><strong>${fmt(r.jumlah)}</strong></td>
+      <td class="num">${r.rata_abs_selisih_byte ? fmt(r.rata_abs_selisih_byte) + " B" : "-"}</td>
+      <td class="num">${r.median_abs_selisih_byte ? fmt(r.median_abs_selisih_byte) + " B" : "-"}</td>
+    </tr>`).join("")}</tbody>`;
+
+  document.getElementById("tbl-idwiki").innerHTML = `
+    <thead><tr><th>Judul Halaman idwiki</th><th class="num">Editor</th><th class="num">Edit</th></tr></thead>
+    <tbody>${DATA.editor_idwiki.map(r => `<tr>
+      <td style="font-size:12px;">${r.title}</td>
+      <td class="num"><span class="badge b-purple">${r.editor_unik}</span></td>
+      <td class="num"><strong>${r.jumlah_suntingan}</strong></td>
+    </tr>`).join("")}</tbody>`;
+
+  drawHBar("chart-words", DATA.ringkasan["2b"].top_kata_idwiki.slice(0, 10).map(([w, n]) => ({
+    label: w, total: n, color: "#0ea5e9"
+  })), { labelW: 115, rowH: 23, width: 320, unit: "frekuensi" });
+
+  // RDD Benchmark (cache + shuffle)
+  const c2d = DATA.ringkasan["2d"].cache;
+  drawVBar("chart-rdd-bench", [
+    { label: "Tanpa Cache\n(3 Action)", val: c2d[0].detik, color: "#ef4444", valLabel: c2d[0].detik + "s", tip: "Hitung ulang lineage 3x penuh: <b>89.97 detik</b>" },
+    { label: "Cache Awal\n(Isi + 3 Act)", val: c2d[1].detik, color: "#f59e0b", valLabel: c2d[1].detik + "s", tip: "Mengisi cache + 3 action: <b>79.42 detik</b>" },
+    { label: "Cache Terisi\n(Diulang)", val: c2d[2].detik, color: "#10b981", valLabel: c2d[2].detik + "s", tip: "Cache sudah di RAM executor: <b>60.08 detik</b> (1.5x lebih cepat)" }
+  ], { height: 225 });
+
+  // SQL Optimization
+  const d3 = DATA.ringkasan["3d"];
+  drawVBar("chart-sql-opt", [
+    { label: "shuffle.part=200\n(1,530 task)", val: d3[0].waktu_terbaik_dtk, color: "#ef4444", valLabel: d3[0].waktu_terbaik_dtk + "s", tip: "Overhead penjadwalan 1,530 task · Shuffle 337.5 KB" },
+    { label: "shuffle.part=4\n(84 task)", val: d3[1].waktu_terbaik_dtk, color: "#10b981", valLabel: d3[1].waktu_terbaik_dtk + "s", tip: "<b>11.8x lebih cepat!</b> · 84 task · Shuffle 120.6 KB" },
+    { label: "SortMergeJoin\n(388.3 KB)", val: d3[2].waktu_terbaik_dtk, color: "#f59e0b", valLabel: d3[2].waktu_terbaik_dtk + "s", tip: "Shuffle read <b>388.3 KB</b> (60 task)" },
+    { label: "BroadcastJoin\n(11.8 KB)", val: d3[3].waktu_terbaik_dtk, color: "#2563eb", valLabel: d3[3].waktu_terbaik_dtk + "s", tip: "Shuffle read turun <b>97%</b> menjadi <b>11.8 KB</b> (48 task)" }
+  ], { height: 225 });
+}
+
+function renderStreamingTab() {
+  // Stream vs Batch verification
+  drawMultiLine("chart-stream-verif", DATA.stream_timeline.map(x => x.menit), [
+    { name: "Streaming (foreachBatch)", color: "#2563eb", values: DATA.stream_timeline.map(x => x.streaming) },
+    { name: "Batch Ulang Kafka", color: "#10b981", values: DATA.stream_timeline.map(x => x.batch) }
+  ], { unit: "edit/menit (identik!)", height: 235 });
+
+  // Trigger 10s vs 30s
+  const tr = DATA.ringkasan["4b"];
+  drawVBar("chart-trigger", [
+    { label: "10s · Throughput\n(rows/dtk)", val: tr[0].processedRowsPerSecond, color: "#2563eb", valLabel: tr[0].processedRowsPerSecond + "/s", tip: "Rata-rata 342.4 baris/batch · Durasi 2,602 ms · Latensi ~7.6 dtk" },
+    { label: "30s · Throughput\n(rows/dtk)", val: tr[1].processedRowsPerSecond, color: "#10b981", valLabel: tr[1].processedRowsPerSecond + "/s", tip: "Rata-rata 1,177.2 baris/batch · Durasi 2,738 ms · Latensi ~17.7 dtk (<b>3.3x throughput</b>)" },
+    { label: "10s · Latensi\n(×10 dtk)", val: tr[0].perkiraan_latensi_dtk * 10, color: "#0ea5e9", valLabel: tr[0].perkiraan_latensi_dtk + "s", tip: "Perkiraan latensi end-to-end: <b>7.6 detik</b> (lebih segar)" },
+    { label: "30s · Latensi\n(×10 dtk)", val: tr[1].perkiraan_latensi_dtk * 10, color: "#f59e0b", valLabel: tr[1].perkiraan_latensi_dtk + "s", tip: "Perkiraan latensi end-to-end: <b>17.7 detik</b>" }
+  ], { height: 235 });
+
+  drawHBar("chart-stream-wikis", DATA.stream_wiki_top.slice(0, 10).map(x => ({
+    label: x.wiki, total: x.edit, color: "#7c3aed"
+  })), { labelW: 115, rowH: 24, unit: "edit streaming" });
+
+  renderSpikes();
+}
+
+function renderSpikes() {
+  const q = document.getElementById("spike-search").value.trim().toLowerCase();
+  const minE = Number(document.getElementById("spike-min").value);
+  const rows = DATA.lonjakan.filter(r =>
+    Number(r.jumlah_edit) >= minE &&
+    (!q || r.title.toLowerCase().includes(q) || r.wiki.toLowerCase().includes(q))
+  );
+  drawHBar("chart-spikes", rows.slice(0, 12).map(r => ({
+    label: `${r.wiki}: ${r.title}`,
+    total: Number(r.jumlah_edit),
+    color: Number(r.jumlah_edit) >= 60 ? "#ef4444" : "#f59e0b",
+    extra: `Jendela ${r.mulai}–${r.akhir} · ${r.editor_unik} editor · ${r.dugaan}`
+  })), { labelW: 190, rowH: 25, unit: "edit / 5 menit" });
+
+  document.getElementById("tbl-spikes").innerHTML = `
+    <thead><tr><th>Wiki &amp; Judul Halaman</th><th>Jendela (WIB)</th><th class="num">Edit</th><th class="num">Editor</th><th>Klasifikasi</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><span class="mono" style="color:var(--primary);">${r.wiki}</span>: <strong>${r.title}</strong></td>
+      <td class="mono" style="font-size:11.5px;">${r.mulai.slice(11)}–${r.akhir}</td>
+      <td class="num"><span class="badge ${Number(r.jumlah_edit) >= 60 ? "b-red" : "b-warn"}">${r.jumlah_edit}</span></td>
+      <td class="num">${r.editor_unik}</td>
+      <td style="font-size:11.5px;">${r.dugaan}</td>
+    </tr>`).join("")}</tbody>`;
+}
+
+function renderAuditTab() {
+  const checks = [
+    ["Arsitektur End-to-End (Sumber → Producer → Kafka → Spark → Dashboard)", "Seluruh 5 lini terhubung di Master (192.168.18.24) + Worker 1 (192.168.18.40) + Worker 2 (192.168.18.14)."],
+    ["Soal 1a · Desain Topic & Bukti Anti-Skew", "Topic HAPISH-GANK-wiki-raw (4 partisi, retensi 72 jam, key wiki|title) meratakan beban 25.0% per partisi (CV 0.00 vs 0.85 pada key=wiki)."],
+    ["Soal 1b · Producer SSE Real-Time ke Kafka", "Mengalirkan Wikimedia EventStreams (User-Agent, HMAC-SHA256 IP, lz4, acks=all, idempotence). 1,484,111 pesan terkumpul (29.4 msg/dtk)."],
+    ["Soal 1c · Uji Decoupling & Crash Consumer Group (Worker 1 & 2)", "Normal: 1,491,016 diproses, 0 hilang, 0 ganda; lag 3,777 dikejar dalam 6 dtk. Crash: 0 hilang, 473 duplikat di-dedup idempoten."],
+    ["Soal 2 · Spark RDD (Snapshot Identik MD5, Narrow/Wide, Benchmark, Cache)", "205,000 baris valid & unik (MD5 identik di Master, W1, W2). reduceByKey menghemat 1,090x shuffle vs groupByKey (20x). Cache 89.97s → 60.08s."],
+    ["Soal 3 · Spark DataFrame, SQL, Deteksi Lonjakan & Optimasi", "100% konsisten 237/237 wiki dengan RDD. Lonjakan adaptif k=p99=5. Tuning shuffle.partitions 200→4 (11.8x), BroadcastJoin (-97% shuffle)."],
+    ["Soal 4 · Spark Structured Streaming (Window 1m, Watermark 2m, Trigger, Restart)", "Trigger 30s (444.8/s) vs 10s (134.2/s). Verifikasi 255/255 jendela final (4,710=4,710, 0 selisih). Uji late data watermark terbukti (+1 dropped)."],
+    ["Dashboard Pemantauan Interaktif", "Menyajikan seluruh metrik Master + Worker 1 + Worker 2 secara interaktif (mode offline HTML & mode Live Auto-Refresh :8501)."]
+  ];
+  document.getElementById("audit-list").innerHTML = checks.map(([t, d]) => `
+    <div class="check-item"><div class="check-icon">✓</div><div><strong>${t}</strong><div style="font-size:12.5px;color:var(--muted);margin-top:2px;">${d}</div></div></div>`).join("");
+
+  const m = DATA.meta;
+  const metaRows = [
+    ["Kelompok / Run ID", `${m.kelompok} / ${m.run_id}`],
+    ["Waktu Eksekusi UTS", `${m.mulai} s.d. ${m.selesai} WIB`],
+    ["PC Master (Kafka + Spark Master)", `${m.master_ip} (Python ${m.python_version} · PySpark ${m.spark_version} · ${m.java_version})`],
+    ["Worker Terhubung", "Worker 1 (fish-w1 / 192.168.18.40) & Worker 2 (fish-w2 / 192.168.18.14)"],
+    ["Topic Kafka", `${m.topic_raw} (4p), ${m.topic_kontrol} (1p), ${m.topic_status} (3p)`],
+    ["Snapshot Checksum (MD5)", `${m.snapshot_md5} (205,000 baris · ${m.snapshot_mb} MB · Identik di semua PC)`]
+  ];
+  document.getElementById("tbl-meta").innerHTML = `<tbody>${metaRows.map(([k, v]) => `<tr><td style="font-weight:700;width:30%;color:var(--muted);">${k}</td><td class="mono">${v}</td></tr>`).join("")}</tbody>`;
+}
+
+// ==================== OPTIONAL LIVE POLLING (/api/live) ====================
+async function fetchLive() {
+  if (location.protocol === "file:") return;
+  try {
+    const res = await fetch("/api/live", { cache: "no-store" });
+    if (!res.ok) return;
+    const live = await res.json();
+    document.getElementById("live-pill").classList.add("live");
+    document.getElementById("live-pill-text").textContent = "LIVE · " + live.server_time;
+    document.getElementById("live-banner").classList.add("show");
+    document.getElementById("live-meta").textContent = `| Spark Workers ALIVE: ${live.spark_workers_alive} | Kafka Total: ${fmt(live.kafka_total_messages)} pesan`;
+    if (live.kafka_total_messages > 0) {
+      document.getElementById("kpi-kafka").textContent = fmt(live.kafka_total_messages);
+    }
+    if (live.spark_workers && live.spark_workers.length) {
+      document.getElementById("kpi-cluster").textContent = `${live.spark_workers.length} Worker ALIVE`;
+      document.getElementById("badge-cluster-live").textContent = `Live Spark Master (${live.server_time})`;
+    }
+    if (live.stream_timeline && live.stream_timeline.length) {
+      drawMultiLine("chart-stream-verif", live.stream_timeline.map(x => x.menit), [
+        { name: "Live Streaming (foreachBatch)", color: "#10b981", values: live.stream_timeline.map(x => x.streaming) }
+      ], { unit: "edit/menit (LIVE)", height: 235, area: true });
+    }
+  } catch (_) {}
+}
+
+// Initialize
+renderArchitecture();
+renderClusterTable();
+renderEpmCharts();
+renderOverviewBot();
+renderKafkaTab();
+renderBotExplorer();
+renderBatchExtras();
+renderStreamingTab();
+renderAuditTab();
+fetchLive();
+setInterval(fetchLive, 10000);
+</script>
+</body>
+</html>
